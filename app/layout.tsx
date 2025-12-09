@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { ThemeProvider } from "next-themes";
+import { Quicksand } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "next-themes";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -9,12 +9,12 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  title: "CoralOps - Sistem Pelaporan Lapangan CV. Coral",
+  description: "Sistem digital untuk pelaporan kegiatan teknisi, manajemen tenaga kerja, validasi dengan geolocation, dan monitoring progres proyek secara real-time pada CV. Coral.",
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const quicksand = Quicksand({
+  variable: "--font-quicksand",
   display: "swap",
   subsets: ["latin"],
 });
@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
+      <body className={`${quicksand.className} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
