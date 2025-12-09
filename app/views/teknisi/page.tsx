@@ -43,6 +43,7 @@ export default function TeknisiViews() {
     title: string;
     reports: number;
     hasActiveTools: boolean;
+    tools: ActiveToolList;
   } | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnContext, setReturnContext] = useState<{
@@ -132,12 +133,13 @@ export default function TeknisiViews() {
       title: assignment.judul,
       reports: assignment.laporan_progres?.length || 0,
       hasActiveTools: assignmentHasActiveTools(assignment),
+      tools: getActiveTools(assignment),
     });
     setProgressDialogOpen(true);
   };
 
   const handleViewDetail = (assignment: PenugasanWithRelations) => {
-    router.push(`/views/teknisi/${assignment.id}`);
+    router.push(`/views/teknisi/penugasan/${assignment.id}`);
   };
 
   const handleReturnClick = (assignment: PenugasanWithRelations) => {
@@ -356,6 +358,7 @@ export default function TeknisiViews() {
         existingReports={progressContext?.reports || 0}
         userId={userId}
         hasActiveTools={progressContext?.hasActiveTools}
+        tools={progressContext?.tools || []}
         onSuccess={() => {
           fetchAssignments();
         }}

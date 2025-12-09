@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, MapPin, UploadCloud, RefreshCcw, Plus, Trash2 } from "lucide-react";
+import { Loader2, MapPin, UploadCloud, RefreshCcw, Plus, Trash2, Wrench } from "lucide-react";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
 import { BuktiLaporanPairPayload, StatusLaporanProgres } from "@/lib/penugasan/types";
@@ -34,6 +35,13 @@ interface PhotoPairState {
   afterError: string | null;
 }
 
+interface ToolPhotoState {
+  alat_id: number;
+  file: File | null;
+  error: string | null;
+  url: string | null;
+}
+
 interface ProgressDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -42,6 +50,17 @@ interface ProgressDialogProps {
   userId: string | null;
   existingReports?: number;
   hasActiveTools?: boolean;
+  tools?: Array<{
+    id: number;
+    alat_id: number;
+    jumlah: number;
+    is_returned: boolean;
+    alat?: {
+      nama: string;
+      foto_url?: string;
+      tipe_alat?: string;
+    };
+  }>;
   onSuccess: (updatedTotal?: number) => void;
 }
 
@@ -117,6 +136,7 @@ export function ProgressDialog({
   userId,
   existingReports = 0,
   hasActiveTools = false,
+  tools = [],
   onSuccess,
 }: ProgressDialogProps) {
   const supabase = useMemo(() => createSupabaseClient(), []);
@@ -140,8 +160,22 @@ export function ProgressDialog({
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [returnTools, setReturnTools] = useState(false);
   const [photoPairs, setPhotoPairs] = useState<PhotoPairState[]>([createEmptyPair()]);
+  const [toolPhotos, setToolPhotos] = useState<ToolPhotoState[]>([]);
+  const [toolPhotoMode, setToolPhotoMode] = useState<'individual' | 'bulk'>('individual');
+  const [bulkToolFile, setBulkToolFile] = useState<File | null>(null);
+  const [bulkToolError, setBulkToolError] = useState<string | null>(null);
   const canAddPair = photoPairs.length < MAX_PAIR_COUNT;
   const locationAttemptRef = useRef(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Persentase range berdasarkan status
   const persentaseRange = useMemo(() => {
@@ -282,36 +316,60 @@ export function ProgressDialog({
     return data.publicUrl;
   };
 
-  const buildPairsPayload = async (): Promise<BuktiLaporanPairPayload[]> => {
-    const nowIso = new Date().toISOString();
-    const payload: BuktiLaporanPairPayload[] = [];
-    for (const pair of photoPairs) {
-      if (!pair.beforeFile || !pair.afterFile) continue;
-      const pairKey = pair.id || generatePairId();
-      const beforeUrl = await uploadPairPhoto(pair.beforeFile, pairKey, 'before');
-      const afterUrl = await uploadPairPhoto(pair.afterFile, pairKey, 'after');
-      const baseMetadata = (file: File) => ({
-        filename: file.name,
-        size: file.size,
-        mime: file.type,
-      });
-      payload.push({
-        pair_key: pairKey,
-        judul: pair.title.trim() || undefined,
-        deskripsi: pair.description.trim() || undefined,
-        before: {
-          foto_url: beforeUrl,
-          taken_at: nowIso,
-          metadata: baseMetadata(pair.beforeFile),
-        },
-        after: {
-          foto_url: afterUrl,
-          taken_at: nowIso,
-          metadata: baseMetadata(pair.afterFile),
-        },
-      });
+  const handleToolPhotoChange = (alatId: number, file: File | null) => {
+    const errorMsg = validateImageFile(file);
+    setToolPhotos((prev) =>
+      prev.map((tool) => {
+        if (tool.alat_id !== alatId) return tool;
+        return {
+          ...tool,
+          file: errorMsg ? null : file,
+          error: errorMsg,
+          url: null
+        };
+      })
+    );
+  };
+
+  const uploadToolPhoto = async (alatId: number, file: File): Promise<string> => {
+    if (!file) {
+      throw new Error('File foto tidak ditemukan');
     }
-    return payload;
+    if (!userId) {
+      throw new Error('User tidak valid');
+    }
+    if (!assignmentId) {
+      throw new Error('Penugasan tidak ditemukan');
+    }
+
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
+    const path = `${userId}/${assignmentId}/tool-pickup/${alatId}-${Date.now()}-${sanitizedName}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Gagal mengunggah foto pengambilan alat');
+    }
+
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const buildPairsPayload = async (): Promise<Array<{ before_url: string; after_url: string }>> => {
+    const pairs: Array<{ before_url: string; after_url: string }> = [];
+    for (const pair of photoPairs) {
+      if (pair.beforeFile && pair.afterFile) {
+        const beforeUrl = await uploadPairPhoto(pair.beforeFile, pair.id, 'before');
+        const afterUrl = await uploadPairPhoto(pair.afterFile, pair.id, 'after');
+        pairs.push({ before_url: beforeUrl, after_url: afterUrl });
+      }
+    }
+    return pairs;
   };
 
   const requestLocation = useCallback(() => {
@@ -362,23 +420,25 @@ export function ProgressDialog({
       setStatus(existingReports === 0 ? "Sedang Dikerjakan" : "Hampir Selesai");
       setReturnTools(false);
       setPhotoPairs((pairs) => (pairs.length === 0 ? [createEmptyPair()] : pairs));
+      
+      // Initialize tool photos for first report
+      if (existingReports === 0 && tools.length > 0) {
+        const activeTools = tools.filter(tool => !tool.is_returned);
+        setToolPhotos(activeTools.map(tool => ({
+          alat_id: tool.alat_id,
+          file: null,
+          error: null,
+          url: null
+        })));
+      } else {
+        setToolPhotos([]);
+      }
+      
       if (!coords) {
         requestLocation();
       }
-    } else {
-      locationAttemptRef.current += 1;
-      setFile(null);
-      setManualLat("");
-      setManualLng("");
-      setCoords(null);
-      setNotes("");
-      setStatus(existingReports === 0 ? "Sedang Dikerjakan" : "Hampir Selesai");
-      setReturnTools(false);
-      setLoadingLocation(false);
-      setLocationStatus(null);
-      setPhotoPairs([createEmptyPair()]);
     }
-  }, [open, existingReports, requestLocation, coords]);
+  }, [open, existingReports, tools, coords, requestLocation]);
 
   useEffect(() => {
     if (status !== "Selesai") {
@@ -480,6 +540,23 @@ export function ProgressDialog({
       return;
     }
 
+    // Validasi foto pengambilan alat untuk laporan pertama
+    const isFirstReport = existingReports === 0;
+    if (isFirstReport) {
+      if (toolPhotoMode === 'individual') {
+        const missingToolPhotos = toolPhotos.filter(tool => !tool.file);
+        if (missingToolPhotos.length > 0) {
+          setError(`Foto pengambilan alat wajib diunggah untuk semua alat (${missingToolPhotos.length} alat belum diupload)`);
+          return;
+        }
+      } else if (toolPhotoMode === 'bulk') {
+        if (!bulkToolFile) {
+          setBulkToolError("Foto pengambilan alat wajib diunggah");
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -488,6 +565,32 @@ export function ProgressDialog({
       if (!pairsPayload.length) {
         throw new Error("Minimal satu bukti foto before/after wajib dilampirkan");
       }
+
+      // Upload foto pengambilan alat untuk laporan pertama
+      let toolPhotosPayload: Array<{ alat_id: number; foto_url: string }> | undefined;
+      if (isFirstReport) {
+        toolPhotosPayload = [];
+        if (toolPhotoMode === 'individual') {
+          for (const toolPhoto of toolPhotos) {
+            if (toolPhoto.file) {
+              const fotoUrl = await uploadToolPhoto(toolPhoto.alat_id, toolPhoto.file);
+              toolPhotosPayload.push({
+                alat_id: toolPhoto.alat_id,
+                foto_url: fotoUrl
+              });
+            }
+          }
+        } else if (toolPhotoMode === 'bulk' && bulkToolFile) {
+          const bulkFotoUrl = await uploadToolPhoto(0, bulkToolFile); // alat_id 0 for bulk
+          for (const tool of tools) {
+            toolPhotosPayload.push({
+              alat_id: tool.alat_id,
+              foto_url: bulkFotoUrl
+            });
+          }
+        }
+      }
+
       const body = {
         status_progres: status,
         persentase_progres: persentase,
@@ -497,6 +600,7 @@ export function ProgressDialog({
         longitude: effectiveCoords?.longitude,
         return_tools: status === "Selesai" ? returnTools : false,
         pairs: pairsPayload,
+        tool_photos: toolPhotosPayload,
       };
 
       const response = await fetch(`/api/penugasan/${assignmentId}/laporan`, {
@@ -592,7 +696,193 @@ export function ProgressDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* Foto Pengambilan Alat - Hanya untuk laporan pertama */}
+          {existingReports === 0 && tools.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label>Foto Pengambilan Alat</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Unggah foto saat mengambil alat untuk setiap alat yang ditugaskan.
+                  </p>
+                </div>
+              </div>
+              <RadioGroup
+                value={toolPhotoMode}
+                onValueChange={(value) => setToolPhotoMode(value as 'individual' | 'bulk')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="text-sm">Satu per alat</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bulk" id="bulk" />
+                  <Label htmlFor="bulk" className="text-sm">Satu untuk semua alat</Label>
+                </div>
+              </RadioGroup>
+              {toolPhotoMode === 'individual' ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {toolPhotos.map((toolPhoto) => {
+                    const tool = tools.find(t => t.alat_id === toolPhoto.alat_id);
+                    return (
+                      <div key={toolPhoto.alat_id} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0">
+                            {tool?.alat?.foto_url ? (
+                              <div className="w-12 h-12 bg-muted rounded-lg overflow-hidden">
+                                <img
+                                  src={tool.alat.foto_url}
+                                  alt={tool.alat.nama}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                                <Wrench className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Label className="text-sm font-medium">{tool?.alat?.nama || `Alat ${toolPhoto.alat_id}`}</Label>
+                            {tool?.alat?.tipe_alat && (
+                              <p className="text-xs text-muted-foreground">{tool.alat.tipe_alat}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">Qty: {tool?.jumlah || 0}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Foto Pengambilan</Label>
+                          {isMobile ? (
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Ambil Foto</Label>
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(event) => handleToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Upload File</Label>
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(event) => handleToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => handleToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                            />
+                          )}
+                          {toolPhoto.file && (
+                            <p className="text-xs text-muted-foreground truncate">{toolPhoto.file.name}</p>
+                          )}
+                          {toolPhoto.error && (
+                            <p className="text-xs text-destructive">{toolPhoto.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <Label className="text-sm font-medium">Foto Pengambilan Semua Alat</Label>
+                    {isMobile ? (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Ambil Foto</Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(event) => {
+                              const selected = event.target.files?.[0];
+                              if (!selected) {
+                                setBulkToolFile(null);
+                                setBulkToolError(null);
+                                return;
+                              }
+                              const validationError = validateImageFile(selected);
+                              if (validationError) {
+                                setBulkToolFile(null);
+                                setBulkToolError(validationError);
+                                return;
+                              }
+                              setBulkToolFile(selected);
+                              setBulkToolError(null);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Upload File</Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              const selected = event.target.files?.[0];
+                              if (!selected) {
+                                setBulkToolFile(null);
+                                setBulkToolError(null);
+                                return;
+                              }
+                              const validationError = validateImageFile(selected);
+                              if (validationError) {
+                                setBulkToolFile(null);
+                                setBulkToolError(validationError);
+                                return;
+                              }
+                              setBulkToolFile(selected);
+                              setBulkToolError(null);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const selected = event.target.files?.[0];
+                          if (!selected) {
+                            setBulkToolFile(null);
+                            setBulkToolError(null);
+                            return;
+                          }
+                          const validationError = validateImageFile(selected);
+                          if (validationError) {
+                            setBulkToolFile(null);
+                            setBulkToolError(validationError);
+                            return;
+                          }
+                          setBulkToolFile(selected);
+                          setBulkToolError(null);
+                        }}
+                      />
+                    )}
+                    {bulkToolFile && (
+                      <p className="text-xs text-muted-foreground truncate">{bulkToolFile.name}</p>
+                    )}
+                    {bulkToolError && (
+                      <p className="text-xs text-destructive">{bulkToolError}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Foto ini akan digunakan untuk semua alat yang dipinjam.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-3">
             <Label>Foto Bukti</Label>
             <Input type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
             <p className="text-xs text-muted-foreground flex items-center gap-1">

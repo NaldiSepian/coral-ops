@@ -300,7 +300,7 @@ Teknisi wajib lapor sesuai frekuensi (Harian/Mingguan)
 4. Submit laporan:
    ├── POST /api/penugasan/[id]/laporan
    ├── Insert ke laporan_progres dengan status_validasi = "Menunggu"
-   ├── Insert pairs ke bukti_laporan_selesai (jika selesai)
+   ├── Insert pairs ke bukti_laporan (jika selesai)
    ├── Notifikasi otomatis ke supervisor
    └── ⚠️ STATUS PENUGASAN TETAP "Aktif" (belum berubah)
 ```
@@ -569,7 +569,7 @@ Scenario: Supervisor reject laporan karena foto blur/tidak sesuai
 - catatan_validasi (TEXT) ← NEW!
 ```
 
-### **8. bukti_laporan_selesai** (Before-After Photos)
+### **8. bukti_laporan** (Before-After Photos)
 ```sql
 - id (SERIAL PRIMARY KEY)
 - laporan_id (INT) → FK to laporan_progres

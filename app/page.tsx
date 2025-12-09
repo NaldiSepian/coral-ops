@@ -54,12 +54,12 @@ export default function Home() {
       </div>
 
       {/* Footer di bawah */}
-      <footer className="w-full flex items-center justify-center bg-background/60 backdrop-blur-sm border-t border-border py-4 px-4">
-        <div className="w-full max-w-md flex justify-between items-center text-xs text-muted-foreground">
-          <p>Developed by Naldi Septian</p>
-          <ThemeSwitcher />
-        </div>
-      </footer>
+      <footer className="w-full bg-background/80 border-t border-border text-center text-xs text-primary py-5 mt-8 relative">
+      &copy; {new Date().getFullYear()} CoralOps. Developed by Naldi.
+      <div className="absolute right-4 bottom-3">
+        <ThemeSwitcher />
+      </div>
+    </footer>
     </main>
   );
 }

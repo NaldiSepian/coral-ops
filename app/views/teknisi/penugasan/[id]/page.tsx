@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { PenugasanWithRelations, StatusPenugasan } from "@/lib/penugasan/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,10 +30,10 @@ import { ReturnToolsDialog } from "@/components/teknisi/return-tools-dialog";
 import dynamic from "next/dynamic";
 
 // Dynamic import untuk MapComponent
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => ({ default: mod.MapContainer })), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => ({ default: mod.TileLayer })), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => ({ default: mod.Marker })), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then(mod => ({ default: mod.Popup })), { ssr: false });
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css';
@@ -200,33 +199,54 @@ export default function TeknisiAssignmentDetail() {
       // Handle EWKT format: SRID=4326;POINT(longitude latitude)
       if (locationData.includes('SRID=')) {
         const wktPart = locationData.split(';')[1];
-        if (wktPart) return wktPart;
+        if (wktPart) {
+          const match = wktPart.match(/POINT\(([^ ]+) ([^)]+)\)/);
+          if (match) {
+            const longitude = parseFloat(match[1]);
+            const latitude = parseFloat(match[2]);
+            return `POINT(${longitude.toFixed(6)} ${latitude.toFixed(6)})`;
+          }
+        }
       }
-      // Return as is if it's already WKT
-      return locationData;
+
+      const match = locationData.match(/POINT\(([^ ]+) ([^)]+)\)/);
+      if (match) {
+        const longitude = parseFloat(match[1]);
+        const latitude = parseFloat(match[2]);
+        return `POINT(${longitude.toFixed(6)} ${latitude.toFixed(6)})`;
+      }
+
+      try {
+        const geoJson = JSON.parse(locationData);
+        if (geoJson.type === 'Point' && Array.isArray(geoJson.coordinates) && geoJson.coordinates.length === 2) {
+          const [longitude, latitude] = geoJson.coordinates;
+          return `POINT(${longitude.toFixed(6)} ${latitude.toFixed(6)})`;
+        }
+      } catch (e) {}
+
+    } else if (typeof locationData === 'object' && locationData.coordinates) {
+      // PostGIS format: { type: "Point", coordinates: [longitude, latitude] }
+      const [longitude, latitude] = locationData.coordinates;
+      if (typeof longitude === 'number' && typeof latitude === 'number') {
+        return `POINT(${longitude.toFixed(6)} ${latitude.toFixed(6)})`;
+      }
+    } else if (Array.isArray(locationData) && locationData.length === 2) {
+      const [longitude, latitude] = locationData;
+      if (typeof longitude === 'number' && typeof latitude === 'number') {
+        return `POINT(${longitude.toFixed(6)} ${latitude.toFixed(6)})`;
+      }
     }
 
-    // For other formats, parse and format
-    const coords = parseLocation(locationData);
-    if (coords) {
-      const [lat, lng] = coords;
-      return `POINT(${lng.toFixed(6)} ${lat.toFixed(6)})`;
-    }
     return 'Lokasi tidak ditentukan';
   };
 
-  // Parse koordinat dari berbagai format yang mungkin dikembalikan oleh Supabase/PostGIS
+  // Parse location data to coordinates
   const parseLocation = (locationData: any): [number, number] | null => {
     if (!locationData) return null;
 
-    // Jika sudah dalam format string POINT(longitude latitude)
     if (typeof locationData === 'string') {
-      // Handle EWKB hex string directly from geography column
       if (HEX_STRING_REGEX.test(locationData.trim())) {
-        const coords = parseWkbPoint(locationData);
-        if (coords) {
-          return coords;
-        }
+        return parseWkbPoint(locationData);
       }
 
       // Handle EWKT format: SRID=4326;POINT(longitude latitude)
@@ -237,52 +257,42 @@ export default function TeknisiAssignmentDetail() {
           if (match) {
             const longitude = parseFloat(match[1]);
             const latitude = parseFloat(match[2]);
-            return [latitude, longitude]; // Return sebagai [lat, lng] untuk Leaflet
+            return [latitude, longitude];
           }
         }
       }
 
-      // Handle regular WKT format
       const match = locationData.match(/POINT\(([^ ]+) ([^)]+)\)/);
       if (match) {
         const longitude = parseFloat(match[1]);
         const latitude = parseFloat(match[2]);
-        return [latitude, longitude]; // Return sebagai [lat, lng] untuk Leaflet
+        return [latitude, longitude];
       }
 
-      // Jika dalam format GeoJSON string dari ST_AsGeoJSON
       try {
         const geoJson = JSON.parse(locationData);
         if (geoJson.type === 'Point' && Array.isArray(geoJson.coordinates) && geoJson.coordinates.length === 2) {
           const [longitude, latitude] = geoJson.coordinates;
-          if (typeof longitude === 'number' && typeof latitude === 'number') {
-            return [latitude, longitude]; // Return sebagai [lat, lng] untuk Leaflet
-          }
+          return [latitude, longitude];
         }
-      } catch (e) {
-        // Not GeoJSON, continue
-      }
-    }
+      } catch (e) {}
 
-    // Jika dalam format objek PostGIS (dari Supabase)
-    if (typeof locationData === 'object' && locationData.coordinates) {
+    } else if (typeof locationData === 'object' && locationData.coordinates) {
       // PostGIS format: { type: "Point", coordinates: [longitude, latitude] }
       const [longitude, latitude] = locationData.coordinates;
       if (typeof longitude === 'number' && typeof latitude === 'number') {
-        return [latitude, longitude]; // Return sebagai [lat, lng] untuk Leaflet
+        return [latitude, longitude];
       }
-    }
-
-    // Jika dalam format array [longitude, latitude]
-    if (Array.isArray(locationData) && locationData.length === 2) {
+    } else if (Array.isArray(locationData) && locationData.length === 2) {
       const [longitude, latitude] = locationData;
       if (typeof longitude === 'number' && typeof latitude === 'number') {
-        return [latitude, longitude]; // Return sebagai [lat, lng] untuk Leaflet
+        return [latitude, longitude];
       }
     }
 
     return null;
   };
+
   const groupBuktiLaporan = (buktiLaporan: any[]) => {
     if (!Array.isArray(buktiLaporan) || buktiLaporan.length === 0) {
       return [];
@@ -437,6 +447,8 @@ export default function TeknisiAssignmentDetail() {
     return null;
   };
 
+  const activeTools = useMemo(() => assignment ? getActiveTools(assignment) : [], [assignment?.alat]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -488,7 +500,6 @@ export default function TeknisiAssignmentDetail() {
   }
 
   const warningMessage = getWarningMessage(assignment);
-  const activeTools = getActiveTools(assignment);
   const attendanceStatus = progressReports.length > 0 ? progressReports[progressReports.length - 1].status_progres : null;
 
   return (
@@ -710,91 +721,15 @@ export default function TeknisiAssignmentDetail() {
                               Lokasi tidak tersedia
                             </div>
                           )}
-                          {(() => {
-                            const totalPhotos = report.pairs?.reduce((count, pair) => {
-                              return count + (pair.before ? 1 : 0) + (pair.after ? 1 : 0);
-                            }, 0) || 0;
-                            return totalPhotos > 0 ? (
-                              <button
-                                onClick={() => {
-                                  // Scroll to the photo section
-                                  const photoSection = document.querySelector(`[data-report-id="${report.id}"]`);
-                                  if (photoSection) {
-                                    photoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  }
-                                }}
-                                className="flex items-center gap-1 text-primary hover:text-primary/80 underline underline-offset-2 transition-colors cursor-pointer"
-                              >
-                                <Camera className="h-3 w-3" />
-                                {totalPhotos} foto tersedia
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <Camera className="h-3 w-3" />
-                                Tidak ada foto
-                              </div>
-                            );
-                          })()}
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs text-primary hover:text-primary/80 underline underline-offset-2"
+                            onClick={() => router.push(`/views/teknisi/laporan/${report.id}`)}
+                          >
+                            Lihat Detail
+                          </Button>
                         </div>
-
-                        {/* Before/After Pairs */}
-                        {report.pairs && report.pairs.length > 0 && (
-                          <div data-report-id={report.id} className="mt-3 space-y-2">
-                            <p className="text-sm font-medium">Dokumentasi Before/After:</p>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {report.pairs.map((pair, pairIndex) => (
-                                <div key={pairIndex} className="rounded border p-2 space-y-1">
-                                  {pair.judul && (
-                                    <p className="text-xs font-medium">{pair.judul}</p>
-                                  )}
-                                  <div className="grid grid-cols-2 gap-1">
-                                    {pair.before && (
-                                      <div className="aspect-square bg-muted rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity relative">
-                                        <Image
-                                          src={pair.before.foto_url}
-                                          alt="Before"
-                                          width={200}
-                                          height={200}
-                                          className="w-full h-full object-cover"
-                                          onClick={() => pair.before && window.open(pair.before.foto_url, '_blank')}
-                                          onError={(e) => {
-                                            const target = e.target as HTMLImageElement;
-                                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgODBMMTE1IDk1TDEzMCA4MEwxNDUgOTVMMTMwIDExMEwxMTUgOTVMMTMwIDgwTDEwMCA5NUwxMTUgODBMMTAwIDgwWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4=';
-                                          }}
-                                        />
-                                        <div className="absolute top-2 left-2 bg-black/80 text-white text-sm font-semibold px-3 py-1 rounded-md shadow-lg border border-white/20">
-                                          BEFORE
-                                        </div>
-                                      </div>
-                                    )}
-                                    {pair.after && (
-                                      <div className="aspect-square bg-muted rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity relative">
-                                        <Image
-                                          src={pair.after.foto_url}
-                                          alt="After"
-                                          width={200}
-                                          height={200}
-                                          className="w-full h-full object-cover"
-                                          onClick={() => pair.after && window.open(pair.after.foto_url, '_blank')}
-                                          onError={(e) => {
-                                            const target = e.target as HTMLImageElement;
-                                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgODBMMTE1IDk1TDEzMCA4MEwxNDUgOTVMMTMwIDExMEwxMTUgOTVMMTMwIDgwTDEwMCA5NUwxMTUgODBMMTAwIDgwWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4=';
-                                          }}
-                                        />
-                                        <div className="absolute top-2 right-2 bg-green-600/90 text-white text-sm font-semibold px-3 py-1 rounded-md shadow-lg border border-white/20">
-                                          AFTER
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {pair.deskripsi && (
-                                    <p className="text-xs text-muted-foreground">{pair.deskripsi}</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -877,7 +812,7 @@ export default function TeknisiAssignmentDetail() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Tim Teknis
+                Anggota Tim
                 <Badge variant="outline" className="ml-auto">
                   {assignment.teknisi?.length || 0} orang
                 </Badge>
@@ -886,13 +821,13 @@ export default function TeknisiAssignmentDetail() {
             <CardContent>
               {assignment.teknisi && assignment.teknisi.length > 0 ? (
                 <div className="space-y-3">
-                  {assignment.teknisi.map((teknisi) => (
-                    <div key={teknisi.id} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-4 w-4 text-primary" />
+                  {assignment.teknisi.map((member) => (
+                    <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{teknisi.profil?.nama || "Nama tidak tersedia"}</p>
+                        <p className="font-medium text-sm">{member.profil?.nama || "Tidak ada nama"}</p>
                         <p className="text-xs text-muted-foreground">Teknisi</p>
                       </div>
                     </div>
@@ -901,7 +836,7 @@ export default function TeknisiAssignmentDetail() {
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
                   <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Belum ada teknisi yang ditugaskan</p>
+                  <p className="text-sm">Tidak ada anggota tim</p>
                 </div>
               )}
             </CardContent>
@@ -919,9 +854,9 @@ export default function TeknisiAssignmentDetail() {
                   <span className="font-medium">{progressReports.length}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Status Akhir</span>
-                  <Badge className={getProgressColor(attendanceStatus || "Belum Mulai")}>
-                    {attendanceStatus || "Belum Mulai"}
+                  <span>Status Terakhir</span>
+                  <Badge className={attendanceStatus ? getProgressColor(attendanceStatus) : "bg-muted"}>
+                    {attendanceStatus || "Belum ada"}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -929,50 +864,39 @@ export default function TeknisiAssignmentDetail() {
                   <span className="font-medium">{activeTools.length}</span>
                 </div>
               </div>
-
-              {progressReports.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Laporan Terakhir</span>
-                    <span className="text-muted-foreground">
-                      {formatDate(progressReports[progressReports.length - 1].created_at)}
-                    </span>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* Dialogs */}
-      <ProgressDialog
-        open={progressDialogOpen}
-        onOpenChange={setProgressDialogOpen}
-        assignmentId={assignment.id}
-        assignmentTitle={assignment.judul}
-        existingReports={progressReports.length}
-        userId={userId}
-        hasActiveTools={assignmentHasActiveTools(assignment)}
-        onSuccess={fetchAssignmentDetail}
-      />
-
       <KendalaDialog
         open={kendalaDialogOpen}
         onOpenChange={setKendalaDialogOpen}
         assignmentId={assignment.id}
         userId={userId}
-        onSuccess={fetchAssignmentDetail}
+        onSuccess={() => {
+          fetchAssignmentDetail();
+        }}
       />
-
+      <ProgressDialog
+        open={progressDialogOpen}
+        onOpenChange={setProgressDialogOpen}
+        assignmentId={assignment.id}
+        userId={userId}
+        onSuccess={() => {
+          fetchAssignmentDetail();
+        }}
+      />
       <ReturnToolsDialog
         open={returnDialogOpen}
         onOpenChange={setReturnDialogOpen}
         assignmentId={assignment.id}
-        assignmentTitle={assignment.judul}
         userId={userId}
         tools={activeTools}
-        onSuccess={fetchAssignmentDetail}
+        onSuccess={() => {
+          fetchAssignmentDetail();
+        }}
       />
     </div>
   );

@@ -124,9 +124,9 @@ CREATE TABLE IF NOT EXISTS laporan_progres (
 );
 
 -- =========================
--- TABEL bukti_laporan_selesai
+-- TABEL bukti_laporan
 -- =========================
-CREATE TABLE IF NOT EXISTS bukti_laporan_selesai (
+CREATE TABLE IF NOT EXISTS bukti_laporan (
   id SERIAL PRIMARY KEY,
   laporan_id INT NOT NULL REFERENCES laporan_progres(id) ON DELETE CASCADE,
   pair_key UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -217,8 +217,8 @@ CREATE INDEX IF NOT EXISTS idx_penugasan_lokasi ON penugasan USING GIST(lokasi);
 CREATE INDEX IF NOT EXISTS idx_laporan_titik_gps ON laporan_progres USING GIST(titik_gps);
 CREATE INDEX IF NOT EXISTS idx_kehadiran_penugasan_teknisi ON kehadiran_teknisi(penugasan_id, teknisi_id);
 CREATE INDEX IF NOT EXISTS idx_perpanjangan_status ON perpanjangan_penugasan(status);
-CREATE INDEX IF NOT EXISTS idx_bukti_laporan_laporan_id ON bukti_laporan_selesai(laporan_id);
-CREATE INDEX IF NOT EXISTS idx_bukti_laporan_pair_key ON bukti_laporan_selesai(pair_key);
+CREATE INDEX IF NOT EXISTS idx_bukti_laporan_laporan_id ON bukti_laporan(laporan_id);
+CREATE INDEX IF NOT EXISTS idx_bukti_laporan_pair_key ON bukti_laporan(pair_key);
 
 -- =========================
 -- FUNGSI TRANSACTIONAL: pinjam_alat (diperkuat)

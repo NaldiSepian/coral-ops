@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
           persentase_progres,
           status_progres,
           pelapor_id,
-          bukti:bukti_laporan_selesai(*)
+          bukti:bukti_laporan(*)
         )
       `)
       .eq('assigned_member.teknisi_id', user.id)
