@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, AlertCircle, CheckCircle, XCircle, MapPin, Calendar, Camera, Wrench, Ruler } from "lucide-react";
-import { ValidasiLaporanDialog } from "@/components/penugasan/detail-penugasan/validasi-laporan-dialog";
+import { Loader2, AlertCircle, CheckCircle, XCircle, Calendar, Check, X, RefreshCcw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface LaporanItem {
   id: number;
@@ -62,21 +63,23 @@ export default function ValidasiLaporanPage() {
   const [laporan, setLaporan] = useState<LaporanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"Menunggu" | "Disetujui" | "Ditolak" | "Semua">("Menunggu");
   const [searchQuery, setSearchQuery] = useState("");
-  const [validasiDialogOpen, setValidasiDialogOpen] = useState(false);
-  const [selectedLaporan, setSelectedLaporan] = useState<LaporanItem | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const router = useRouter();
+
+  // Validation dialog states
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [validationAction, setValidationAction] = useState<'approve' | 'reject' | null>(null);
+  const [validationNote, setValidationNote] = useState('');
+  const [validating, setValidating] = useState(false);
+  const [selectedLaporanId, setSelectedLaporanId] = useState<number | null>(null);
 
   const fetchLaporan = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (statusFilter !== "Semua") {
-        params.append("status", statusFilter);
-      }
+      params.append("status", "Menunggu");
 
       const response = await fetch(`/api/supervisor/laporan-validasi?${params}`, {
         cache: "no-store"
@@ -94,7 +97,7 @@ export default function ValidasiLaporanPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => {
     fetchLaporan();
@@ -109,28 +112,69 @@ export default function ValidasiLaporanPage() {
     );
   }, [laporan, searchQuery]);
 
-  const stats = useMemo(() => {
-    return {
-      total: laporan.length,
-      menunggu: laporan.filter((l) => l.status_validasi === "Menunggu").length,
-      disetujui: laporan.filter((l) => l.status_validasi === "Disetujui").length,
-      ditolak: laporan.filter((l) => l.status_validasi === "Ditolak").length
-    };
-  }, [laporan]);
-
-  const handleValidasi = (laporanItem: LaporanItem) => {
-    setSelectedLaporan(laporanItem);
-    setValidasiDialogOpen(true);
-  };
-
   const handleDetail = (laporanId: number) => {
     router.push(`/views/spv/laporan/validasi/${laporanId}`);
   };
 
-  const handleValidasiSuccess = () => {
-    setValidasiDialogOpen(false);
-    setSelectedLaporan(null);
-    setRefreshTrigger((prev) => prev + 1);
+  const handleApprove = async (laporanId: number) => {
+    setSelectedLaporanId(laporanId);
+    setValidationAction('approve');
+    setValidationNote('');
+    setShowValidationDialog(true);
+  };
+
+  const handleReject = async (laporanId: number) => {
+    setSelectedLaporanId(laporanId);
+    setValidationAction('reject');
+    setValidationNote('');
+    setShowValidationDialog(true);
+  };
+
+  const handleValidation = async (action: 'approve' | 'reject') => {
+    if (!selectedLaporanId) return;
+
+    // Ensure status is exactly "Disetujui" or "Ditolak"
+    const validationStatus = action === 'approve' ? 'Disetujui' : 'Ditolak';
+
+    setValidating(true);
+    try {
+      const response = await fetch(`/api/laporan/${selectedLaporanId}/validasi`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status_validasi: validationStatus,
+          catatan_validasi: validationNote.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gagal melakukan validasi');
+      }
+
+      // Refresh data
+      setRefreshTrigger((prev) => prev + 1);
+      
+      // Close dialog and reset state
+      setShowValidationDialog(false);
+      setValidationAction(null);
+      setValidationNote('');
+      setSelectedLaporanId(null);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan saat validasi');
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const openValidationDialog = (action: 'approve' | 'reject', laporanId: number) => {
+    setSelectedLaporanId(laporanId);
+    setValidationAction(action);
+    setValidationNote('');
+    setShowValidationDialog(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -183,27 +227,7 @@ export default function ValidasiLaporanPage() {
         </p>
       </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="p-4 border-primary/20">
-          <div className="text-xs text-muted-foreground mb-1">Total Laporan</div>
-          <div className="text-2xl font-bold text-primary">{stats.total}</div>
-        </Card>
-        <Card className="p-4 bg-accent border-border">
-          <div className="text-xs text-muted-foreground mb-1">Menunggu</div>
-          <div className="text-2xl font-bold text-accent-foreground">{stats.menunggu}</div>
-        </Card>
-        <Card className="p-4 bg-secondary/20 border-secondary">
-          <div className="text-xs text-muted-foreground mb-1">Disetujui</div>
-          <div className="text-2xl font-bold text-secondary-foreground">{stats.disetujui}</div>
-        </Card>
-        <Card className="p-4 bg-destructive/10 border-destructive/30">
-          <div className="text-xs text-muted-foreground mb-1">Ditolak</div>
-          <div className="text-2xl font-bold text-destructive">{stats.ditolak}</div>
-        </Card>
-      </div>
-
-      {/* Filters */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex-1 min-w-0">
           <Input
@@ -213,17 +237,6 @@ export default function ValidasiLaporanPage() {
             className="w-full"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as any)}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Filter status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Semua">Semua Status</SelectItem>
-            <SelectItem value="Menunggu">Menunggu Validasi</SelectItem>
-            <SelectItem value="Disetujui">Disetujui</SelectItem>
-            <SelectItem value="Ditolak">Ditolak</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Error Alert */}
@@ -270,15 +283,15 @@ export default function ValidasiLaporanPage() {
                   </div>
 
                   {laporanItem.catatan && (
-                    <p className="text-sm text-foreground bg-card/80">
-                      Catatan: {laporanItem.catatan}
+                    <p className="text-sm text-foreground">
+                      Catatan: <strong>{laporanItem.catatan}</strong>
                     </p>
                   )}
 
                   <div className="flex items-center gap-2 flex-wrap">
                     {laporanItem.status_progres && (
                       <p className="text-sm text-foreground">
-                        Progres Kerja: {laporanItem.status_progres}
+                        Progres Kerja: <strong>{laporanItem.status_progres}</strong>
                       </p>
                     )}
                     {laporanItem.persentase_progres != null && (
@@ -334,13 +347,24 @@ export default function ValidasiLaporanPage() {
                       Detail
                     </Button>
                     {laporanItem.status_validasi === "Menunggu" && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleValidasi(laporanItem)}
-                        className="flex-1 sm:flex-none"
-                      >
-                        Validasi
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => openValidationDialog('approve', laporanItem.id)}
+                          className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openValidationDialog('reject', laporanItem.id)}
+                          className="flex-1 sm:flex-none"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -354,31 +378,72 @@ export default function ValidasiLaporanPage() {
       {!loading && filteredLaporan.length === 0 && (
         <Card className="p-8 text-center">
           <div className="text-muted-foreground space-y-2">
-            {statusFilter === "Menunggu" ? (
-              <>
-                <CheckCircle className="w-12 h-12 mx-auto opacity-50 mb-4" />
-                <p className="font-medium">Semua laporan sudah divalidasi!</p>
-                <p className="text-sm">Tidak ada laporan yang menunggu validasi Anda</p>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-12 h-12 mx-auto opacity-50 mb-4" />
-                <p>Tidak ada laporan dengan filter yang dipilih</p>
-              </>
-            )}
+            <CheckCircle className="w-12 h-12 mx-auto opacity-50 mb-4" />
+            <p className="font-medium">Semua laporan sudah divalidasi!</p>
+            <p className="text-sm">Tidak ada laporan yang menunggu validasi Anda</p>
           </div>
         </Card>
       )}
 
-      {/* Validasi Dialog */}
-      {selectedLaporan && (
-        <ValidasiLaporanDialog
-          open={validasiDialogOpen}
-          onOpenChange={setValidasiDialogOpen}
-          laporan={selectedLaporan}
-          onSuccess={handleValidasiSuccess}
-        />
-      )}
+      {/* Validation Dialog */}
+      <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {validationAction === 'approve' ? 'Setujui Laporan' : 'Tolak Laporan'}
+            </DialogTitle>
+            <DialogDescription>
+              {validationAction === 'approve'
+                ? 'Apakah Anda yakin ingin menyetujui laporan ini?'
+                : 'Berikan alasan penolakan laporan ini.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="validation-note" className="mb-2">Catatan Validasi (Opsional)</Label>
+              <Textarea
+                id="validation-note"
+                placeholder={validationAction === 'approve' ? 'Catatan persetujuan...' : 'Alasan penolakan...'}
+                value={validationNote}
+                onChange={(e) => setValidationNote(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowValidationDialog(false)}
+              disabled={validating}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={() => handleValidation(validationAction!)}
+              disabled={validating}
+              variant={validationAction === 'approve' ? 'default' : 'destructive'}
+            >
+              {validating ? (
+                <>
+                  <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                  Memproses...
+                </>
+              ) : validationAction === 'approve' ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Setujui
+                </>
+              ) : (
+                <>
+                  <X className="w-4 h-4 mr-2" />
+                  Tolak
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </section>
   );
 }

@@ -41,7 +41,8 @@ export async function POST(
       longitude,
       return_tools,
       pairs,
-      tool_photos
+      tool_photos,
+      return_tool_photos
     } = body;
 
     if (!status_progres || !VALID_STATUS.includes(status_progres)) {
@@ -183,6 +184,32 @@ export async function POST(
       }
     }
 
+    // Handle foto pengembalian alat jika return_tools dicentang
+    if (shouldAutoReturn && return_tool_photos) {
+      if (!Array.isArray(return_tool_photos)) {
+        return NextResponse.json({ error: "Format foto pengembalian alat tidak valid" }, { status: 400 });
+      }
+
+      // Validasi dan update foto pengembalian alat
+      for (const returnToolPhoto of return_tool_photos) {
+        if (!returnToolPhoto.alat_id || !returnToolPhoto.foto_url) {
+          return NextResponse.json({ error: "Foto pengembalian alat tidak lengkap" }, { status: 400 });
+        }
+
+        const { error: updateReturnToolError } = await supabase
+          .from('peminjaman_alat')
+          .update({ foto_kembali_url: returnToolPhoto.foto_url })
+          .eq('penugasan_id', penugasanId)
+          .eq('alat_id', returnToolPhoto.alat_id)
+          .eq('is_returned', false);
+
+        if (updateReturnToolError) {
+          console.error('Failed to update tool return photo:', updateReturnToolError);
+          return NextResponse.json({ error: "Gagal menyimpan foto pengembalian alat" }, { status: 500 });
+        }
+      }
+    }
+
     // Validasi pairs - wajib untuk status Selesai
     if (shouldFinalize) {
       if (!Array.isArray(pairs) || pairs.length === 0) {
@@ -232,12 +259,16 @@ export async function POST(
 
       if (!activeLoansError && activeLoans && activeLoans.length > 0) {
         for (const loan of activeLoans) {
+          // Cari foto pengembalian untuk alat ini, fallback ke foto laporan jika tidak ada
+          const returnPhoto = return_tool_photos?.find((rtp: any) => rtp.alat_id === loan.alat_id);
+          const fotoKembaliUrl = returnPhoto?.foto_url || foto_url;
+
           const { error: updateLoanError } = await supabase
             .from('peminjaman_alat')
             .update({
               is_returned: true,
               returned_at: nowIso,
-              foto_kembali_url: foto_url,
+              foto_kembali_url: fotoKembaliUrl,
             })
             .eq('id', loan.id);
 

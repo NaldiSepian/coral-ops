@@ -70,8 +70,18 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     // Filter by status validasi
-    if (status && ['Menunggu', 'Disetujui', 'Ditolak'].includes(status)) {
+    if (status && status !== 'all' && ['Menunggu', 'Disetujui', 'Ditolak'].includes(status)) {
       query = query.eq('status_validasi', status);
+    } else if (status === 'all') {
+      query = query.neq('status_validasi', 'Menunggu');
+    }
+
+    // Filter by penugasan_id
+    if (penugasanId) {
+      const id = Number(penugasanId);
+      if (!Number.isNaN(id)) {
+        query = query.eq('penugasan_id', id);
+      }
     }
 
     // Filter by penugasan_id

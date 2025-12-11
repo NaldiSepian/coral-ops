@@ -23,7 +23,8 @@ import {
   RefreshCcw,
   Camera,
   MessageSquare,
-  Package
+  Package,
+  XCircle
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -49,6 +50,10 @@ interface ProgressReport {
   longitude: number | null;
   created_at: string;
   persentase_progres: number;
+  status_validasi: string | null;
+  divalidasi_oleh: string | null;
+  divalidasi_pada: string | null;
+  catatan_validasi: string | null;
   pairs?: Array<{
     id?: number;
     pair_key: string;
@@ -113,8 +118,8 @@ function LocationMap({ position }: { position: [number, number] }) {
       dragging={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
       />
       <Marker position={position}>
         <Popup>
@@ -455,6 +460,14 @@ export default function PenugasanDetail({
                             <Badge className={getProgressColor(report.status_progres)}>
                               {report.status_progres}
                             </Badge>
+                            {report.status_validasi && (
+                              <Badge variant={report.status_validasi === "Disetujui" ? "secondary" : report.status_validasi === "Ditolak" ? "destructive" : "outline"} className={report.status_validasi === "Menunggu" ? "bg-accent text-accent-foreground border-border" : ""}>
+                                {report.status_validasi === "Menunggu" && <AlertCircle className="w-3 h-3 mr-1" />}
+                                {report.status_validasi === "Disetujui" && <CheckCircle className="w-3 h-3 mr-1" />}
+                                {report.status_validasi === "Ditolak" && <XCircle className="w-3 h-3 mr-1" />}
+                                {report.status_validasi === "Menunggu" ? "Menunggu Validasi" : report.status_validasi}
+                              </Badge>
+                            )}
                             <span className="text-sm text-muted-foreground">
                               {formatDate(report.created_at)} • {formatTime(report.created_at)}
                             </span>

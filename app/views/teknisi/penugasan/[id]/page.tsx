@@ -23,6 +23,10 @@ interface ProgressReport {
   longitude: number | null;
   created_at: string;
   persentase_progres: number;
+  status_validasi: string | null;
+  divalidasi_oleh: string | null;
+  divalidasi_pada: string | null;
+  catatan_validasi: string | null;
   pairs?: Array<{
     id?: number;
     pair_key: string;
@@ -208,7 +212,14 @@ export default function TeknisiAssignmentDetail() {
         open={progressDialogOpen}
         onOpenChange={setProgressDialogOpen}
         assignmentId={assignment.id}
+        assignmentTitle={assignment.judul}
+        existingReports={assignment.laporan_progres?.length || 0}
+        approvedReports={assignment.laporan_progres?.filter(r => r.status_validasi === "Disetujui").length || 0}
         userId={userId}
+        hasActiveTools={activeTools.length > 0}
+        tools={activeTools}
+        isResubmission={assignment.laporan_progres?.[0]?.status_validasi === "Ditolak"}
+        lastRejectedProgress={assignment.laporan_progres?.[0]?.status_validasi === "Ditolak" ? assignment.laporan_progres[0].persentase_progres : undefined}
         onSuccess={() => {
           fetchAssignmentDetail();
         }}

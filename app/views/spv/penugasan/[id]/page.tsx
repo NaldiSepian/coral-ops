@@ -379,14 +379,9 @@ export default function PenugasanDetailPage() {
           />
         </TabsContent>
 
-        {/* Progress Tab */}
         <TabsContent value="progress">
           <PenugasanDetailProgress
             penugasan={penugasan}
-            onAddProgress={() => {
-              // TODO: Navigate to add progress page or open modal
-              alert('Fitur tambah laporan progress akan diimplementasi dalam iterasi berikutnya');
-            }}
           />
         </TabsContent>
 

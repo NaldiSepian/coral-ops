@@ -20,7 +20,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { status, catatan_spv, ditolak_alasan } = body;
+    const { status, catatan_validasi } = body;
 
     if (!['Disetujui', 'Ditolak'].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
@@ -55,10 +55,16 @@ export async function PATCH(
       if (!minutes) {
         return NextResponse.json({ error: "Durasi belum ditentukan" }, { status: 400 });
       }
-      const base = extensionRequest.penugasan?.end_date
-        ? new Date(extensionRequest.penugasan.end_date)
-        : new Date();
-      base.setMinutes(base.getMinutes() + minutes);
+      
+      // Validasi maksimal 7 hari (10080 menit)
+      const maxMinutes = 7 * 24 * 60; // 7 hari dalam menit
+      if (minutes > maxMinutes) {
+        return NextResponse.json({ error: "Durasi perpanjangan maksimal 7 hari" }, { status: 400 });
+      }
+      
+      const hari = Math.round(minutes / (24 * 60));
+      const base = new Date(extensionRequest.penugasan.end_date + 'T00:00:00.000Z'); // Treat as UTC
+      base.setUTCDate(base.getUTCDate() + hari);
       newEndDate = base.toISOString().slice(0, 10);
 
       const { error: updatePenugasanError } = await supabase
@@ -77,8 +83,7 @@ export async function PATCH(
 
     const updatePayload: Record<string, any> = {
       status,
-      catatan_spv: catatan_spv || null,
-      ditolak_alasan: status === 'Ditolak' ? (ditolak_alasan || 'Tidak disetujui') : null,
+      catatan_validasi: catatan_validasi || null,
       disetujui_oleh: status === 'Disetujui' ? user.id : null,
       disetujui_pada: status === 'Disetujui' ? new Date().toISOString() : null,
     };

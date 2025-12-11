@@ -1,4 +1,4 @@
-// Location Picker Component using OpenStreetMap + Leaflet
+// Location Picker Component using Esri World Imagery + Leaflet
 // =============================================================================
 // Features:
 // - Interactive map dengan marker yang bisa di-drag
@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Navigation, Search } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -137,8 +136,8 @@ function DynamicMap({
       key={`map-${position.join('-')}`} // Force re-render when position changes
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
       />
       <Marker
         position={position}
@@ -305,7 +304,7 @@ export function LocationPicker({
     setSearchResults([]); // Clear previous results
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=id&addressdetails=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&countrycodes=id&addressdetails=1`
       );
       const data = await response.json();
 
@@ -416,28 +415,30 @@ export function LocationPicker({
             {searchResults.length > 0 && (
               <div className="space-y-2">
                 <Label>Hasil Pencarian</Label>
-                <Select onValueChange={(value) => {
-                  const result = searchResults.find(r => r.place_id === value);
-                  if (result) handleSearchResultSelect(result);
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih lokasi dari hasil pencarian" />
-                  </SelectTrigger>
-                  <SelectContent>
+                <div className="max-h-48 overflow-y-auto border rounded-md">
+                  <div className="p-2 space-y-1">
                     {searchResults.map((result) => (
-                      <SelectItem key={result.place_id} value={result.place_id}>
+                      <button
+                        key={result.place_id}
+                        type="button"
+                        onClick={() => handleSearchResultSelect(result)}
+                        className="w-full text-left p-3 rounded-md hover:bg-muted transition-colors border-b border-border/50 last:border-b-0"
+                      >
                         <div className="flex flex-col">
-                          <span className="font-medium">{result.display_name.split(',')[0]}</span>
+                          <span className="font-medium text-sm">{result.display_name.split(',')[0]}</span>
                           <span className="text-xs text-muted-foreground">
                             {result.display_name.split(',').slice(1, 3).join(', ')}
                           </span>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            Lat: {parseFloat(result.lat).toFixed(4)}, Lng: {parseFloat(result.lon).toFixed(4)}
+                          </span>
                         </div>
-                      </SelectItem>
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Pilih salah satu hasil pencarian untuk memindahkan marker ke lokasi tersebut
+                  Klik salah satu hasil untuk memilih lokasi tersebut
                 </p>
               </div>
             )}

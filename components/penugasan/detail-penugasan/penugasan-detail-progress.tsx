@@ -1,40 +1,36 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PenugasanWithRelations } from "@/lib/penugasan/types";
+import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
 
 interface PenugasanDetailProgressProps {
   penugasan: PenugasanWithRelations;
-  onAddProgress: () => void;
 }
 
 const getValidasiStatusColor = (status?: string) => {
   switch (status) {
     case "Disetujui":
-      return "bg-green-50 border-green-200";
+      return "bg-secondary/10 border-secondary/30 text-secondary-foreground";
     case "Ditolak":
-      return "bg-red-50 border-red-200";
+      return "bg-destructive/10 border-destructive/30 text-destructive";
     default:
-      return "bg-yellow-50 border-yellow-200";
+      return "bg-muted/50 border-border text-muted-foreground";
   }
 };
 
 export function PenugasanDetailProgress({
   penugasan,
-  onAddProgress,
 }: PenugasanDetailProgressProps) {
+  const router = useRouter();
+
+  const handleLaporanClick = (laporanId: number) => {
+    router.push(`/views/spv/laporan/validasi/${laporanId}`);
+  };
   return (
     <div className="rounded-lg border p-4 sm:p-6">
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4">
         <h2 className="text-base sm:text-lg font-medium">Laporan Progress</h2>
-        {/* Add progress button jika teknisi assigned dan penugasan aktif */}
-        {penugasan.teknisi && penugasan.teknisi.length > 0 && penugasan.status === 'Aktif' && (
-          <Button
-            size="sm"
-            onClick={onAddProgress}
-          >
-            Add Progress Report
-          </Button>
-        )}
       </div>
       {/* Progress timeline */}
       {penugasan.laporan_progres && penugasan.laporan_progres.length > 0 ? (
@@ -44,7 +40,8 @@ export function PenugasanDetailProgress({
             .map((laporan) => (
             <div 
               key={laporan.id} 
-              className={`p-3 sm:p-4 rounded-lg border ${getValidasiStatusColor(laporan.status_validasi)}`}
+              className={`p-3 sm:p-4 rounded-lg border ${getValidasiStatusColor(laporan.status_validasi)} cursor-pointer hover:shadow-md transition-shadow`}
+              onClick={() => handleLaporanClick(laporan.id)}
             >
               <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-2">
                 <span className="font-medium">
@@ -77,7 +74,7 @@ export function PenugasanDetailProgress({
               
               {/* Catatan validasi jika ditolak */}
               {laporan.status_validasi === "Ditolak" && laporan.catatan_validasi && (
-                <div className="bg-red-100 border border-red-200 text-red-800 text-xs p-2 rounded mb-2">
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-xs p-2 rounded mb-2">
                   <p className="font-semibold mb-1">Alasan Penolakan:</p>
                   {laporan.catatan_validasi}
                 </div>
@@ -101,22 +98,21 @@ export function PenugasanDetailProgress({
                   Divalidasi {new Date(laporan.divalidasi_pada || "").toLocaleString("id-ID")}
                 </div>
               )}
+
+              {/* Download button */}
+              <div className="flex justify-end">
+                {/* TODO: Implement download functionality for individual report */}
+                <Button variant="outline" size="sm" disabled>
+                  <Download className="w-3 h-3 mr-1" />
+                  Download
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="text-center py-8 text-muted-foreground">
           <p className="text-sm sm:text-base">Belum ada laporan progress</p>
-          {penugasan.teknisi && penugasan.teknisi.length > 0 && penugasan.status === 'Aktif' && (
-            <div className="mt-4">
-              <Button
-                onClick={onAddProgress}
-                size="sm"
-              >
-                Add First Progress Report
-              </Button>
-            </div>
-          )}
         </div>
       )}
     </div>

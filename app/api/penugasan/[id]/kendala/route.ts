@@ -35,6 +35,12 @@ export async function POST(
       return NextResponse.json({ error: "Alasan dan durasi harus diisi" }, { status: 400 });
     }
 
+    // Validasi maksimal 7 hari (10080 menit)
+    const maxMinutes = 7 * 24 * 60;
+    if (durasi_menit > maxMinutes) {
+      return NextResponse.json({ error: "Durasi perpanjangan maksimal 7 hari" }, { status: 400 });
+    }
+
     const kendalaType: KendalaType = ALLOWED_TYPES.includes(tipe_kendala)
       ? tipe_kendala
       : 'Lain';
@@ -90,7 +96,7 @@ export async function POST(
     await supabase.from('log_aktivitas').insert({
       pengguna_id: user.id,
       aksi: 'Ajukan Kendala',
-      deskripsi: `Durasi ${durasi_menit} menit untuk penugasan ${penugasanId}`
+      deskripsi: `Durasi ${Math.round(durasi_menit / (24 * 60))} hari untuk penugasan ${penugasanId}`
     });
 
     return NextResponse.json({ message: "Kendala dikirim", kendala });

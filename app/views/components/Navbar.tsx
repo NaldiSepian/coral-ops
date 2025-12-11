@@ -55,6 +55,7 @@ export default function Navbar({ role, nama }: NavbarProps) {
           items: [
             { href: "/views/spv/penugasan", label: "Kelola Penugasan" },
             { href: "/views/spv/laporan", label: "Validasi Laporan" },
+            { href: "/views/spv/kendala", label: "Kendala" },
           ]
         },
         { href: "/views/spv/inventaris", label: "Inventaris", type: "link" },
@@ -114,8 +115,8 @@ export default function Navbar({ role, nama }: NavbarProps) {
                           href={subItem.href}
                           className={`w-full cursor-pointer ${
                             pathname === subItem.href
-                              ? "bg-primary-foreground/20 text-secondary-foreground"
-                              : "text-secondary-foreground/90 hover:bg-primary-foreground/10"
+                              ? "bg-accent text-accent-foreground font-medium"
+                              : "text-foreground hover:bg-accent hover:text-accent-foreground"
                           }`}
                         >
                           {subItem.label}

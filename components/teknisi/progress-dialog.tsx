@@ -49,6 +49,7 @@ interface ProgressDialogProps {
   assignmentTitle?: string;
   userId: string | null;
   existingReports?: number;
+  approvedReports?: number;
   hasActiveTools?: boolean;
   tools?: Array<{
     id: number;
@@ -61,6 +62,8 @@ interface ProgressDialogProps {
       tipe_alat?: string;
     };
   }>;
+  isResubmission?: boolean;
+  lastRejectedProgress?: number;
   onSuccess: (updatedTotal?: number) => void;
 }
 
@@ -135,17 +138,32 @@ export function ProgressDialog({
   assignmentTitle,
   userId,
   existingReports = 0,
+  approvedReports = 0,
   hasActiveTools = false,
   tools = [],
+  isResubmission = false,
+  lastRejectedProgress,
   onSuccess,
 }: ProgressDialogProps) {
   const supabase = useMemo(() => createSupabaseClient(), []);
-  const [status, setStatus] = useState<StatusLaporanProgres>(
-    existingReports === 0 ? "Menunggu" : "Hampir Selesai"
-  );
-  const [persentase, setPersentase] = useState<number>(
-    existingReports === 0 ? 5 : 76
-  );
+  
+  // Determine default status and progress based on resubmission
+  const getDefaultStatus = (): StatusLaporanProgres => {
+    if (isResubmission && lastRejectedProgress !== undefined) {
+      return lastRejectedProgress >= 90 ? "Selesai" : "Hampir Selesai";
+    }
+    return approvedReports === 0 ? "Menunggu" : "Hampir Selesai";
+  };
+  
+  const getDefaultProgress = (): number => {
+    if (isResubmission && lastRejectedProgress !== undefined) {
+      return lastRejectedProgress;
+    }
+    return approvedReports === 0 ? 5 : 76;
+  };
+  
+  const [status, setStatus] = useState<StatusLaporanProgres>(getDefaultStatus());
+  const [persentase, setPersentase] = useState<number>(getDefaultProgress());
   const [persentaseError, setPersentaseError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -164,6 +182,10 @@ export function ProgressDialog({
   const [toolPhotoMode, setToolPhotoMode] = useState<'individual' | 'bulk'>('individual');
   const [bulkToolFile, setBulkToolFile] = useState<File | null>(null);
   const [bulkToolError, setBulkToolError] = useState<string | null>(null);
+  const [returnToolPhotos, setReturnToolPhotos] = useState<ToolPhotoState[]>([]);
+  const [returnToolPhotoMode, setReturnToolPhotoMode] = useState<'individual' | 'bulk'>('individual');
+  const [bulkReturnToolFile, setBulkReturnToolFile] = useState<File | null>(null);
+  const [bulkReturnToolError, setBulkReturnToolError] = useState<string | null>(null);
   const canAddPair = photoPairs.length < MAX_PAIR_COUNT;
   const locationAttemptRef = useRef(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -334,6 +356,21 @@ export function ProgressDialog({
     );
   };
 
+  const handleReturnToolPhotoChange = (alatId: number, file: File | null) => {
+    const errorMsg = validateImageFile(file);
+    setReturnToolPhotos((prev) =>
+      prev.map((tool) => {
+        if (tool.alat_id !== alatId) return tool;
+        return {
+          ...tool,
+          file: errorMsg ? null : file,
+          error: errorMsg,
+          url: null
+        };
+      })
+    );
+  };
+
   const uploadToolPhoto = async (alatId: number, file: File): Promise<string> => {
     if (!file) {
       throw new Error('File foto tidak ditemukan');
@@ -357,6 +394,35 @@ export function ProgressDialog({
 
     if (uploadError) {
       throw new Error(uploadError.message || 'Gagal mengunggah foto pengambilan alat');
+    }
+
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const uploadReturnToolPhoto = async (alatId: number, file: File): Promise<string> => {
+    if (!file) {
+      throw new Error('File foto tidak ditemukan');
+    }
+    if (!userId) {
+      throw new Error('User tidak valid');
+    }
+    if (!assignmentId) {
+      throw new Error('Penugasan tidak ditemukan');
+    }
+
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
+    const path = `${userId}/${assignmentId}/tool-return/${alatId}-${Date.now()}-${sanitizedName}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Gagal mengunggah foto pengembalian alat');
     }
 
     const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
@@ -426,12 +492,12 @@ export function ProgressDialog({
       setError(null);
       setFileError(null);
       setLocationStatus(null);
-      setStatus(existingReports === 0 ? "Menunggu" : "Hampir Selesai");
+      setStatus(approvedReports === 0 ? "Menunggu" : "Hampir Selesai");
       setReturnTools(false);
       setPhotoPairs((pairs) => (pairs.length === 0 ? [createEmptyPair()] : pairs));
       
       // Initialize tool photos for first report
-      if (existingReports === 0 && tools.length > 0) {
+      if (approvedReports === 0 && tools.length > 0) {
         const activeTools = tools.filter(tool => !tool.is_returned);
         setToolPhotos(activeTools.map(tool => ({
           alat_id: tool.alat_id,
@@ -443,11 +509,17 @@ export function ProgressDialog({
         setToolPhotos([]);
       }
       
+      // Reset return tool photos
+      setReturnToolPhotos([]);
+      setReturnToolPhotoMode('individual');
+      setBulkReturnToolFile(null);
+      setBulkReturnToolError(null);
+      
       if (!coords) {
         requestLocation();
       }
     }
-  }, [open, existingReports, tools, coords, requestLocation]);
+  }, [open, approvedReports, tools, coords, requestLocation]);
 
   useEffect(() => {
     if (status !== "Selesai") {
@@ -460,6 +532,22 @@ export function ProgressDialog({
       setReturnTools(false);
     }
   }, [hasActiveTools]);
+
+  useEffect(() => {
+    if (returnTools && tools.length > 0) {
+      const activeTools = tools.filter(tool => !tool.is_returned);
+      setReturnToolPhotos(activeTools.map(tool => ({
+        alat_id: tool.alat_id,
+        file: null,
+        error: null,
+        url: null
+      })));
+    } else {
+      setReturnToolPhotos([]);
+      setBulkReturnToolFile(null);
+      setBulkReturnToolError(null);
+    }
+  }, [returnTools, tools]);
 
   const validateManualCoords = () => {
     if (!manualLat && !manualLng) {
@@ -553,7 +641,7 @@ export function ProgressDialog({
     }
 
     // Validasi foto pengambilan alat untuk laporan pertama
-    const isFirstReport = existingReports === 0;
+    const isFirstReport = approvedReports === 0;
     if (isFirstReport && tools.length > 0) {
       if (toolPhotoMode === 'individual') {
         const missingToolPhotos = toolPhotos.filter(tool => !tool.file);
@@ -564,6 +652,22 @@ export function ProgressDialog({
       } else if (toolPhotoMode === 'bulk') {
         if (!bulkToolFile) {
           setBulkToolError("Foto pengambilan alat wajib diunggah");
+          return;
+        }
+      }
+    }
+
+    // Validasi foto pengembalian alat jika return_tools dicentang
+    if (returnTools && tools.length > 0) {
+      if (returnToolPhotoMode === 'individual') {
+        const missingReturnToolPhotos = returnToolPhotos.filter(tool => !tool.file);
+        if (missingReturnToolPhotos.length > 0) {
+          setError(`Foto pengembalian alat wajib diunggah untuk semua alat (${missingReturnToolPhotos.length} alat belum diupload)`);
+          return;
+        }
+      } else if (returnToolPhotoMode === 'bulk') {
+        if (!bulkReturnToolFile) {
+          setBulkReturnToolError("Foto pengembalian alat wajib diunggah");
           return;
         }
       }
@@ -608,6 +712,32 @@ export function ProgressDialog({
         }
       }
 
+      // Upload foto pengembalian alat jika return_tools dicentang
+      let returnToolPhotosPayload: Array<{ alat_id: number; foto_url: string }> | undefined;
+      if (returnTools && tools.length > 0) {
+        returnToolPhotosPayload = [];
+        if (returnToolPhotoMode === 'individual') {
+          for (const returnToolPhoto of returnToolPhotos) {
+            if (returnToolPhoto.file) {
+              const fotoUrl = await uploadReturnToolPhoto(returnToolPhoto.alat_id, returnToolPhoto.file);
+              returnToolPhotosPayload.push({
+                alat_id: returnToolPhoto.alat_id,
+                foto_url: fotoUrl
+              });
+            }
+          }
+        } else if (returnToolPhotoMode === 'bulk' && bulkReturnToolFile) {
+          // Upload sekali, gunakan URL yang sama untuk semua alat
+          const bulkReturnFotoUrl = await uploadReturnToolPhoto(Date.now(), bulkReturnToolFile); // Use timestamp as unique identifier for bulk
+          for (const tool of tools.filter(t => !t.is_returned)) {
+            returnToolPhotosPayload.push({
+              alat_id: tool.alat_id,
+              foto_url: bulkReturnFotoUrl
+            });
+          }
+        }
+      }
+
       const body = {
         status_progres: status,
         persentase_progres: persentase,
@@ -618,6 +748,7 @@ export function ProgressDialog({
         return_tools: status === "Selesai" ? returnTools : false,
         pairs: pairsPayload,
         tool_photos: toolPhotosPayload,
+        return_tool_photos: returnToolPhotosPayload,
       };
 
       const response = await fetch(`/api/penugasan/${assignmentId}/laporan`, {
@@ -641,7 +772,7 @@ export function ProgressDialog({
   };
 
   const shouldOfferAutoReturn = hasActiveTools && status === "Selesai";
-  const reportLabel = existingReports === 0 ? "Mulai Kerja" : `Laporan Progres Ke-${existingReports + 1}`;
+  const reportLabel = `Laporan Progres Ke-${approvedReports + 1}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -783,7 +914,7 @@ export function ProgressDialog({
           </div>
 
           {/* Foto Pengambilan Alat - Hanya untuk laporan pertama */}
-          {existingReports === 0 && tools.length > 0 && (
+          {approvedReports === 0 && tools.length > 0 && (
             <div className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -997,23 +1128,189 @@ export function ProgressDialog({
             </div>
           )}
 
-          
-
-          {status === "Selesai" && (
-            <div className="rounded-lg border p-3 space-y-1">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="auto-return-tools"
-                  checked={returnTools}
-                  onCheckedChange={(checked) => setReturnTools(Boolean(checked))}
-                />
-                <div className="text-sm">
-                  <Label htmlFor="auto-return-tools" className="font-medium text-sm">Kembalikan semua alat yang belum dipulangkan</Label>
+          {/* Foto Pengembalian Alat - Hanya saat return_tools dicentang */}
+          {returnTools && tools.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label>Foto Pengembalian Alat</Label>
                   <p className="text-xs text-muted-foreground">
-                    Centang jika semua alat lapangan sudah dibawa kembali. Bukti foto progres ini dipakai untuk pengembalian massal.
+                    Unggah foto saat mengembalikan alat untuk setiap alat yang dikembalikan.
                   </p>
                 </div>
               </div>
+              <RadioGroup
+                value={returnToolPhotoMode}
+                onValueChange={(value) => setReturnToolPhotoMode(value as 'individual' | 'bulk')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="return-individual" />
+                  <Label htmlFor="return-individual" className="text-sm">Satu per alat</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bulk" id="return-bulk" />
+                  <Label htmlFor="return-bulk" className="text-sm">Satu untuk semua alat</Label>
+                </div>
+              </RadioGroup>
+              {returnToolPhotoMode === 'individual' ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {returnToolPhotos.map((toolPhoto) => {
+                    const tool = tools.find(t => t.alat_id === toolPhoto.alat_id);
+                    return (
+                      <div key={toolPhoto.alat_id} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0">
+                            {tool?.alat?.foto_url ? (
+                              <div className="w-12 h-12 bg-muted rounded-lg overflow-hidden">
+                                <img
+                                  src={tool.alat.foto_url}
+                                  alt={tool.alat.nama}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                                <Wrench className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Label className="text-sm font-medium">{tool?.alat?.nama || `Alat ${toolPhoto.alat_id}`}</Label>
+                            {tool?.alat?.tipe_alat && (
+                              <p className="text-xs text-muted-foreground">{tool.alat.tipe_alat}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">Qty: {tool?.jumlah || 0}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Foto Pengembalian</Label>
+                          {isMobile ? (
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Ambil Foto</Label>
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(event) => handleReturnToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Upload File</Label>
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(event) => handleReturnToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => handleReturnToolPhotoChange(toolPhoto.alat_id, event.target.files?.[0] || null)}
+                            />
+                          )}
+                          {toolPhoto.file && (
+                            <p className="text-xs text-muted-foreground truncate">{toolPhoto.file.name}</p>
+                          )}
+                          {toolPhoto.error && (
+                            <p className="text-xs text-destructive">{toolPhoto.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <Label className="text-sm font-medium">Foto Pengembalian Semua Alat</Label>
+                    {isMobile ? (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Ambil Foto</Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(event) => {
+                              const selected = event.target.files?.[0];
+                              if (!selected) {
+                                setBulkReturnToolFile(null);
+                                setBulkReturnToolError(null);
+                                return;
+                              }
+                              const validationError = validateImageFile(selected);
+                              if (validationError) {
+                                setBulkReturnToolFile(null);
+                                setBulkReturnToolError(validationError);
+                                return;
+                              }
+                              setBulkReturnToolFile(selected);
+                              setBulkReturnToolError(null);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Upload File</Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              const selected = event.target.files?.[0];
+                              if (!selected) {
+                                setBulkReturnToolFile(null);
+                                setBulkReturnToolError(null);
+                                return;
+                              }
+                              const validationError = validateImageFile(selected);
+                              if (validationError) {
+                                setBulkReturnToolFile(null);
+                                setBulkReturnToolError(validationError);
+                                return;
+                              }
+                              setBulkReturnToolFile(selected);
+                              setBulkReturnToolError(null);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const selected = event.target.files?.[0];
+                          if (!selected) {
+                            setBulkReturnToolFile(null);
+                            setBulkReturnToolError(null);
+                            return;
+                          }
+                          const validationError = validateImageFile(selected);
+                          if (validationError) {
+                            setBulkReturnToolFile(null);
+                            setBulkReturnToolError(validationError);
+                            return;
+                          }
+                          setBulkReturnToolFile(selected);
+                          setBulkReturnToolError(null);
+                        }}
+                      />
+                    )}
+                    {bulkReturnToolFile && (
+                      <p className="text-xs text-muted-foreground truncate">{bulkReturnToolFile.name}</p>
+                    )}
+                    {bulkReturnToolError && (
+                      <p className="text-xs text-destructive">{bulkReturnToolError}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Foto ini akan digunakan untuk semua alat yang dikembalikan.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

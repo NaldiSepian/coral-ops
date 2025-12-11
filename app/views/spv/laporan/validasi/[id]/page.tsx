@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   ArrowLeft,
   Calendar,
@@ -21,7 +24,10 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  User
+  User,
+  Check,
+  X,
+  Download
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { parseLocation, calculateDistance, getLocationDisplayText } from "@/lib/utils/location";
@@ -42,6 +48,24 @@ interface LaporanDetail {
   catatan_validasi?: string;
   created_at: string;
   titik_gps?: string;
+  tool_photos?: Array<{
+    id: number;
+    foto_url: string;
+    alat_id: number;
+    alat?: {
+      nama: string;
+      tipe_alat: string;
+    };
+  }>;
+  return_tool_photos?: Array<{
+    id: number;
+    foto_url: string;
+    alat_id: number;
+    alat?: {
+      nama: string;
+      tipe_alat: string;
+    };
+  }>;
   penugasan: {
     id: number;
     judul: string;
@@ -114,6 +138,12 @@ export default function ValidasiLaporanDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Validation dialog states
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [validationAction, setValidationAction] = useState<'approve' | 'reject' | null>(null);
+  const [validationNote, setValidationNote] = useState('');
+  const [validating, setValidating] = useState(false);
+
   // Fix marker icon paths for Leaflet in client-side
   useEffect(() => {
     import('leaflet').then((L) => {
@@ -147,14 +177,72 @@ export default function ValidasiLaporanDetailPage() {
         reportPosition[0], reportPosition[1],
         assignmentPosition[0], assignmentPosition[1]
       );
-      const isValid = distance <= 100; // Within 100 meters
+      const isValid = distance <= 5000; // Within 5km (5000 meters)
       const message = isValid
-        ? `Lokasi valid (${distance.toFixed(1)} meter dari lokasi penugasan)`
-        : `Lokasi tidak valid (${distance.toFixed(1)} meter dari lokasi penugasan)`;
+        ? `Lokasi valid (${distance.toFixed(2)}km dari lokasi penugasan)`
+        : `Lokasi laporan ${distance.toFixed(2)}km dari lokasi penugasan (maksimal 5km)`;
       return { distance, isValid, message };
     }
     return null;
   }, [reportPosition, assignmentPosition]);
+
+  // Check if all tool photos are the same
+  const areAllToolPhotosSame = useMemo(() => {
+    if (!laporan?.tool_photos || laporan.tool_photos.length === 0) return false;
+
+    const firstPhoto = laporan.tool_photos[0].foto_url;
+    return laporan.tool_photos.every(photo => photo.foto_url === firstPhoto);
+  }, [laporan?.tool_photos]);
+
+  // Check if all return tool photos are the same
+  const areAllReturnToolPhotosSame = useMemo(() => {
+    if (!laporan?.return_tool_photos || laporan.return_tool_photos.length === 0) return false;
+
+    const firstPhoto = laporan.return_tool_photos[0].foto_url;
+    return laporan.return_tool_photos.every(photo => photo.foto_url === firstPhoto);
+  }, [laporan?.return_tool_photos]);
+
+  // Group return tool photos by URL
+  const groupedReturnToolPhotos = useMemo(() => {
+    if (!laporan?.return_tool_photos || laporan.return_tool_photos.length === 0) return {};
+
+    const groups: { [key: string]: Array<{ id: number; foto_url: string; alat_id: number; alat?: { nama: string; tipe_alat: string; } }> } = {};
+
+    laporan.return_tool_photos.forEach((photo) => {
+      if (!groups[photo.foto_url]) {
+        groups[photo.foto_url] = [];
+      }
+      groups[photo.foto_url].push(photo);
+    });
+
+    return groups;
+  }, [laporan?.return_tool_photos]);
+
+  // State for photo preview dialog
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+
+  // Photo Preview Dialog Component
+  const PhotoPreviewDialog = ({ photoUrl, onClose }: { photoUrl: string | null; onClose: () => void }) => {
+    if (!photoUrl) return null;
+
+    return (
+      <Dialog open={!!photoUrl} onOpenChange={() => onClose()}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Preview Foto</DialogTitle>
+          </DialogHeader>
+          <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
+            <Image
+              src={photoUrl}
+              alt="Preview foto"
+              fill
+              className="object-contain"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   const fetchLaporanDetail = async () => {
     setLoading(true);
@@ -196,11 +284,56 @@ export default function ValidasiLaporanDetailPage() {
   }, [laporanId]);
 
   const handleBack = () => {
-    router.push('/views/spv/laporan/validasi');
+    router.push('/views/spv/laporan/');
   };
 
   const handleRetry = () => {
     fetchLaporanDetail();
+  };
+
+  const handleValidation = async (action: 'approve' | 'reject') => {
+    if (!laporan) return;
+
+    // Ensure status is exactly "Disetujui" or "Ditolak"
+    const validationStatus = action === 'approve' ? 'Disetujui' : 'Ditolak';
+
+    setValidating(true);
+    try {
+      const response = await fetch(`/api/laporan/${laporan.id}/validasi`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status_validasi: validationStatus,
+          catatan_validasi: validationNote.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gagal melakukan validasi');
+      }
+
+      // Refresh data
+      await fetchLaporanDetail();
+      
+      // Close dialog and reset state
+      setShowValidationDialog(false);
+      setValidationAction(null);
+      setValidationNote('');
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan saat validasi');
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const openValidationDialog = (action: 'approve' | 'reject') => {
+    setValidationAction(action);
+    setValidationNote('');
+    setShowValidationDialog(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -324,11 +457,47 @@ export default function ValidasiLaporanDetailPage() {
                   <FileText className="h-5 w-5" />
                   Status Laporan
                 </CardTitle>
-                {getStatusBadge(laporan.status_validasi)}
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(laporan.status_validasi)}
+                  {laporan.status_validasi === "Menunggu" && (
+                    <div className="flex gap-2 ml-4">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => openValidationDialog('approve')}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Setujui
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => openValidationDialog('reject')}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Tolak
+                      </Button>
+                    </div>
+                  )}
+                  {laporan.status_validasi === "Disetujui" && (
+                    <div className="ml-4">
+                      {/* TODO: Implement download functionality for approved reports */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex justify-between items-start gap-8">
                 <div className="space-y-1">
                   <p className="text-sm font-medium flex items-center gap-2">
                     <Clock className="h-4 w-4" />
@@ -345,8 +514,8 @@ export default function ValidasiLaporanDetailPage() {
                     })}
                   </p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium flex items-center gap-2">
+                <div className="space-y-1 text-right">
+                  <p className="text-sm font-medium flex items-center gap-2 justify-end">
                     <Ruler className="h-4 w-4" />
                     Persentase Progres
                   </p>
@@ -354,12 +523,12 @@ export default function ValidasiLaporanDetailPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex justify-between items-start gap-8">
                 <div className="space-y-1">
                   <p className="text-sm font-medium">Status Progres</p>
                   <Badge variant="outline">{laporan.status_progres}</Badge>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 text-right">
                   <p className="text-sm font-medium">Pelapor</p>
                   <p className="text-sm text-muted-foreground">{laporan.pelapor.nama}</p>
                 </div>
@@ -449,6 +618,8 @@ export default function ValidasiLaporanDetailPage() {
             </Card>
           )}
 
+          
+
           {/* Photo Pairs */}
           {laporan.bukti_laporan && laporan.bukti_laporan.length > 0 && (
             <Card>
@@ -459,9 +630,20 @@ export default function ValidasiLaporanDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {laporan.bukti_laporan.some(bukti => bukti.taken_at) && (
+                  <div className="mb-4">
+                    <p className="text-xs text-muted-foreground">
+                      Diambil pada: {new Date(laporan.bukti_laporan.find(bukti => bukti.taken_at)?.taken_at || "").toLocaleString("id-ID")}
+                      {laporan.bukti_laporan.some(bukti => bukti.taken_by) && ` oleh ${laporan.pelapor.nama}`}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-6">
+                  
                   {laporan.bukti_laporan.map((bukti) => (
+                    
                     <div key={bukti.id} className="space-y-3">
+                      
                       {bukti.judul && (
                         <h4 className="font-medium">{bukti.judul}</h4>
                       )}
@@ -471,7 +653,7 @@ export default function ValidasiLaporanDetailPage() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <p className="text-sm font-medium">Sebelum</p>
-                          <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                          <div className="relative aspect-video rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(bukti.before_foto_url)}>
                             <Image
                               src={bukti.before_foto_url}
                               alt="Foto sebelum"
@@ -482,7 +664,7 @@ export default function ValidasiLaporanDetailPage() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-sm font-medium">Sesudah</p>
-                          <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                          <div className="relative aspect-video rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(bukti.after_foto_url)}>
                             <Image
                               src={bukti.after_foto_url}
                               alt="Foto sesudah"
@@ -492,12 +674,7 @@ export default function ValidasiLaporanDetailPage() {
                           </div>
                         </div>
                       </div>
-                      {bukti.taken_at && (
-                        <p className="text-xs text-muted-foreground">
-                          Diambil pada: {new Date(bukti.taken_at).toLocaleString("id-ID")}
-                          {bukti.taken_by && ` oleh ${bukti.taken_by}`}
-                        </p>
-                      )}
+                     
                     </div>
                   ))}
                 </div>
@@ -515,7 +692,7 @@ export default function ValidasiLaporanDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted">
+                <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(laporan.foto_url)}>
                   <Image
                     src={laporan.foto_url}
                     alt="Foto bukti"
@@ -530,6 +707,103 @@ export default function ValidasiLaporanDetailPage() {
 
         {/* Right Container - Assignment Resources */}
         <div className="space-y-6">
+          {/* Tool Pickup Evidence */}
+          {laporan.tool_photos && laporan.tool_photos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Bukti Pengambilan Alat
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {areAllToolPhotosSame ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Semua alat menggunakan foto bukti yang sama
+                    </p>
+                    <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(laporan.tool_photos![0].foto_url)}>
+                      <Image
+                        src={laporan.tool_photos![0].foto_url}
+                        alt="Bukti pengambilan alat"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {laporan.tool_photos.map((toolPhoto) => (
+                      <div key={toolPhoto.id} className="space-y-2">
+                        <p className="text-sm font-medium">
+                          {toolPhoto.alat?.nama || `Alat ${toolPhoto.alat_id}`}
+                        </p>
+                        <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(toolPhoto.foto_url)}>
+                          <Image
+                            src={toolPhoto.foto_url}
+                            alt={`Bukti pengambilan ${toolPhoto.alat?.nama || `alat ${toolPhoto.alat_id}`}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {/* Tool Return Evidence */}
+          {laporan.return_tool_photos && laporan.return_tool_photos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Bukti Pengembalian Alat
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {areAllReturnToolPhotosSame ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Semua alat menggunakan foto bukti yang sama
+                    </p>
+                    <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(laporan.return_tool_photos![0].foto_url)}>
+                      <Image
+                        src={laporan.return_tool_photos[0].foto_url}
+                        alt="Bukti pengembalian alat"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(groupedReturnToolPhotos).map(([fotoUrl, photos]) => {
+                        const toolNames = photos.map(p => p.alat?.nama || `Alat ${p.alat_id}`).join(', ');
+                        return (
+                          <div key={fotoUrl} className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {toolNames}
+                            </p>
+                            <div className="relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => setPreviewPhoto(fotoUrl)}>
+                              <Image
+                                src={fotoUrl}
+                                alt={`Bukti pengembalian ${toolNames}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           {/* Assigned Technicians */}
           {assignment?.teknisi && assignment.teknisi.length > 0 && (
             <Card>
@@ -574,9 +848,9 @@ export default function ValidasiLaporanDetailPage() {
                     <div key={alatItem.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         {alatItem.alat?.foto_url && (
-                          <div className="relative w-10 h-10 rounded overflow-hidden bg-muted">
+                          <div className="relative w-10 h-10 rounded overflow-hidden bg-muted cursor-pointer" onClick={() => alatItem.alat && setPreviewPhoto(alatItem.alat.foto_url!)}>
                             <Image
-                              src={alatItem.alat.foto_url}
+                              src={alatItem.alat.foto_url!}
                               alt={alatItem.alat.nama}
                               fill
                               className="object-cover"
@@ -606,6 +880,68 @@ export default function ValidasiLaporanDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Validation Dialog */}
+      <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {validationAction === 'approve' ? 'Setujui Laporan' : 'Tolak Laporan'}
+            </DialogTitle>
+            <DialogDescription>
+              {validationAction === 'approve'
+                ? 'Apakah Anda yakin ingin menyetujui laporan ini?'
+                : 'Berikan alasan penolakan laporan ini.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="validation-note" className="mb-2">Catatan Validasi (Opsional)</Label>
+              <Textarea
+                id="validation-note"
+                placeholder={validationAction === 'approve' ? 'Catatan persetujuan...' : 'Alasan penolakan...'}
+                value={validationNote}
+                onChange={(e) => setValidationNote(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowValidationDialog(false)}
+              disabled={validating}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={() => handleValidation(validationAction!)}
+              disabled={validating}
+              variant={validationAction === 'approve' ? 'default' : 'destructive'}
+            >
+              {validating ? (
+                <>
+                  <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                  Memproses...
+                </>
+              ) : validationAction === 'approve' ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Setujui
+                </>
+              ) : (
+                <>
+                  <X className="w-4 h-4 mr-2" />
+                  Tolak
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Preview Dialog */}
+      <PhotoPreviewDialog photoUrl={previewPhoto} onClose={() => setPreviewPhoto(null)} />
     </div>
   );
 }

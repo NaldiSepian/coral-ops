@@ -113,6 +113,10 @@ export async function GET(
           foto_url,
           created_at,
           titik_gps,
+          status_validasi,
+          divalidasi_oleh,
+          divalidasi_pada,
+          catatan_validasi,
           bukti_laporan(
             id,
             judul,

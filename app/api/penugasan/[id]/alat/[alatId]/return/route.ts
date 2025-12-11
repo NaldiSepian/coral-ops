@@ -22,7 +22,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { foto_url } = body;
+    const { foto_url, jumlah_dikembalikan } = body;
 
     if (!foto_url) {
       return NextResponse.json({ error: "Foto pengembalian wajib diunggah" }, { status: 400 });
@@ -54,13 +54,30 @@ export async function POST(
       return NextResponse.json({ error: "Alat sudah dikembalikan" }, { status: 400 });
     }
 
+    // Default to full return if jumlah_dikembalikan not provided
+    const returnQuantity = jumlah_dikembalikan !== undefined ? Number(jumlah_dikembalikan) : peminjaman.jumlah;
+
+    if (returnQuantity <= 0 || returnQuantity > peminjaman.jumlah) {
+      return NextResponse.json({ error: `Jumlah pengembalian harus antara 1 sampai ${peminjaman.jumlah}` }, { status: 400 });
+    }
+
+    // Update peminjaman based on return quantity
+    const isFullReturn = returnQuantity === peminjaman.jumlah;
+    const updateData: any = {
+      returned_at: new Date().toISOString(),
+      foto_kembali_url: foto_url
+    };
+
+    if (isFullReturn) {
+      updateData.is_returned = true;
+    } else {
+      // For partial return, reduce the quantity
+      updateData.jumlah = peminjaman.jumlah - returnQuantity;
+    }
+
     const { error: updatePeminjamanError } = await supabase
       .from('peminjaman_alat')
-      .update({
-        is_returned: true,
-        returned_at: new Date().toISOString(),
-        foto_kembali_url: foto_url
-      })
+      .update(updateData)
       .eq('id', peminjaman.id);
 
     if (updatePeminjamanError) {
@@ -74,10 +91,11 @@ export async function POST(
       .eq('id', alatIdNumber)
       .single();
 
+    // Restock the returned quantity
     if (alatRow) {
       const { error: restockError } = await supabase
         .from('alat')
-        .update({ stok_tersedia: alatRow.stok_tersedia + peminjaman.jumlah })
+        .update({ stok_tersedia: alatRow.stok_tersedia + returnQuantity })
         .eq('id', alatIdNumber);
 
       if (restockError) {
@@ -88,7 +106,7 @@ export async function POST(
     await supabase.from('log_aktivitas').insert({
       pengguna_id: user.id,
       aksi: 'Pengembalian Alat',
-      deskripsi: `Alat ${alatIdNumber} dikembalikan untuk penugasan ${penugasanId}`
+      deskripsi: `Alat ${alatIdNumber} dikembalikan ${returnQuantity} unit untuk penugasan ${penugasanId}${isFullReturn ? ' (selesai)' : ' (parsial)'}`
     });
 
     return NextResponse.json({ message: "Alat dikembalikan" });

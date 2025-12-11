@@ -124,10 +124,47 @@ export async function GET(
       processedBuktiLaporan.push(...Object.values(groupedByPair));
     }
 
+    // Get tool photos from peminjaman_alat (foto_ambil_url and foto_kembali_url)
+    const { data: toolPhotos, error: toolPhotosError } = await supabase
+      .from("peminjaman_alat")
+      .select(`
+        id,
+        alat_id,
+        foto_ambil_url,
+        foto_kembali_url,
+        alat:alat(*)
+      `)
+      .eq("penugasan_id", report.penugasan_id)
+      .not("foto_ambil_url", "is", null);
+
+    if (toolPhotosError) {
+      console.error("Error fetching tool photos:", toolPhotosError);
+    }
+
+    // Process tool photos
+    const toolPhotosData = (toolPhotos || []).map((tp: any) => ({
+      id: tp.id,
+      alat_id: tp.alat_id,
+      foto_url: tp.foto_ambil_url,
+      alat: tp.alat
+    }));
+
+    // Process return tool photos
+    const returnToolPhotosData = (toolPhotos || [])
+      .filter((tp: any) => tp.foto_kembali_url && tp.foto_kembali_url.trim() !== '')
+      .map((tp: any) => ({
+        id: tp.id,
+        alat_id: tp.alat_id,
+        foto_url: tp.foto_kembali_url,
+        alat: tp.alat
+      }));
+
     // Prepare the response data
     const responseData = {
       ...report,
-      bukti_laporan: processedBuktiLaporan
+      bukti_laporan: processedBuktiLaporan,
+      tool_photos: toolPhotosData,
+      return_tool_photos: returnToolPhotosData
     };
 
     return NextResponse.json({

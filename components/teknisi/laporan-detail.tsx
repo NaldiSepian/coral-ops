@@ -16,7 +16,10 @@ import {
   Camera,
   Wrench,
   RefreshCcw,
-  Ruler
+  Ruler,
+  AlertCircle,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { LaporanDetail as LaporanDetailType, LaporanDetailResponse } from "@/lib/penugasan/types";
@@ -71,16 +74,16 @@ function ReportLocationMap({ reportPosition, assignmentPosition }: { reportPosit
     <MapContainer
       center={reportPosition}
       zoom={15}
-      style={{ height: '300px', width: '100%' }}
-      className="rounded-lg"
+      style={{ height: '400px', width: '100%', zIndex: 1 }}
+      className="rounded-lg relative"
       zoomControl={true}
       scrollWheelZoom={false}
       doubleClickZoom={false}
       dragging={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
       />
       <Marker position={reportPosition}>
         <Popup>
@@ -230,9 +233,19 @@ export default function LaporanDetail({
                   <FileText className="h-5 w-5" />
                   Status Laporan
                 </CardTitle>
-                <Badge variant={report.status_progres === "Selesai" ? "default" : "secondary"}>
-                  {report.status_progres}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={report.status_progres === "Selesai" ? "default" : "secondary"}>
+                    {report.status_progres}
+                  </Badge>
+                  {report.status_validasi && (
+                    <Badge variant={report.status_validasi === "Disetujui" ? "secondary" : report.status_validasi === "Ditolak" ? "destructive" : "outline"} className={report.status_validasi === "Menunggu" ? "bg-accent text-accent-foreground border-border" : ""}>
+                      {report.status_validasi === "Menunggu" && <AlertCircle className="w-3 h-3 mr-1" />}
+                      {report.status_validasi === "Disetujui" && <CheckCircle className="w-3 h-3 mr-1" />}
+                      {report.status_validasi === "Ditolak" && <XCircle className="w-3 h-3 mr-1" />}
+                      {report.status_validasi === "Menunggu" ? "Menunggu Validasi" : report.status_validasi}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -266,6 +279,39 @@ export default function LaporanDetail({
                 <div className="space-y-1">
                   <p className="text-sm font-medium">Catatan</p>
                   <p className="text-sm text-muted-foreground">{report.catatan}</p>
+                </div>
+              )}
+
+              {report.status_validasi && report.status_validasi !== "Menunggu" && (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-sm font-medium">Informasi Validasi</p>
+                  <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                    {report.divalidasi_pada && (
+                      <div>
+                        <span className="text-muted-foreground">Divalidasi pada:</span>
+                        <p>{new Date(report.divalidasi_pada).toLocaleDateString("id-ID", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}</p>
+                      </div>
+                    )}
+                    {report.divalidasi_oleh && (
+                      <div>
+                        <span className="text-muted-foreground">Divalidasi oleh:</span>
+                        <p>{report.divalidasi_oleh}</p>
+                      </div>
+                    )}
+                  </div>
+                  {report.catatan_validasi && (
+                    <div className="mt-2">
+                      <span className="text-sm text-muted-foreground">Catatan validasi:</span>
+                      <p className="text-sm mt-1 p-2 bg-muted rounded">{report.catatan_validasi}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

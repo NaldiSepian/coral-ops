@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCcw, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
 type ActiveToolList = NonNullable<PenugasanWithRelations["alat"]>;
@@ -42,8 +43,11 @@ export default function TeknisiViews() {
     id: number;
     title: string;
     reports: number;
+    approvedReports: number;
     hasActiveTools: boolean;
     tools: ActiveToolList;
+    isResubmission: boolean;
+    lastRejectedProgress?: number;
   } | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnContext, setReturnContext] = useState<{
@@ -54,6 +58,8 @@ export default function TeknisiViews() {
   const [kendalaAssignmentId, setKendalaAssignmentId] = useState<number | null>(null);
   const [validationFilter, setValidationFilter] = useState<StatusPenugasan | "ALL">("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDailyReportReminder, setShowDailyReportReminder] = useState(false);
+  const [reminderShownToday, setReminderShownToday] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -99,6 +105,46 @@ export default function TeknisiViews() {
     fetchAssignments();
   }, [supabase, fetchAssignments]);
 
+  // Check if technician has reported today for active assignments
+  const checkDailyReportStatus = useCallback(() => {
+    if (!assignments.length) return;
+
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Don't show reminder if already shown today
+    if (reminderShownToday === today) return;
+
+    const activeAssignments = assignments.filter(assignment => 
+      assignment.status === "Aktif" && !hasFinalProgress(assignment)
+    );
+
+    // Check if any active assignment with daily frequency hasn't reported today
+    const needsDailyReport = activeAssignments.some(assignment => {
+      // Only check daily frequency assignments
+      if (assignment.frekuensi_laporan !== 'Harian') return false;
+      
+      // Check if there's a report today
+      const hasReportedToday = assignment.laporan_progres?.some(report => {
+        const reportDate = new Date(report.tanggal_laporan).toISOString().split('T')[0];
+        return reportDate === today;
+      });
+      
+      return !hasReportedToday;
+    });
+
+    // Show reminder if daily report is needed
+    if (needsDailyReport) {
+      setShowDailyReportReminder(true);
+      setReminderShownToday(today);
+    }
+  }, [assignments, reminderShownToday]);
+
+  useEffect(() => {
+    if (assignments.length > 0) {
+      checkDailyReportStatus();
+    }
+  }, [assignments, checkDailyReportStatus]);
+
   const handleKendalaClick = (assignmentId: number) => {
     setKendalaAssignmentId(assignmentId);
     setKendalaDialogOpen(true);
@@ -120,20 +166,34 @@ export default function TeknisiViews() {
   const getActiveTools = (assignment: PenugasanWithRelations): ActiveToolList =>
     (assignment.alat?.filter((item) => !item.is_returned) ?? []) as ActiveToolList;
 
-  const isReportLocked = (assignment: PenugasanWithRelations) =>
-    assignment.status !== "Aktif" || hasFinalProgress(assignment);
+  const isReportLocked = (assignment: PenugasanWithRelations) => {
+    if (assignment.status !== "Aktif" || hasFinalProgress(assignment)) {
+      return true;
+    }
+
+    return false;
+  };
 
   const handleProgressClick = (assignment: PenugasanWithRelations) => {
     if (isReportLocked(assignment)) {
       setInfo("Penugasan ini sedang menunggu validasi supervisor & manager.");
       return;
     }
+    const latestReport = assignment.laporan_progres?.[0];
+    const isResubmission = latestReport?.status_validasi === "Ditolak";
+    
+    // Hitung jumlah laporan yang sudah disetujui untuk penomoran yang benar
+    const approvedReportsCount = assignment.laporan_progres?.filter(report => report.status_validasi === "Disetujui").length || 0;
+    
     setProgressContext({
       id: assignment.id,
       title: assignment.judul,
       reports: assignment.laporan_progres?.length || 0,
+      approvedReports: approvedReportsCount,
       hasActiveTools: assignmentHasActiveTools(assignment),
       tools: getActiveTools(assignment),
+      isResubmission,
+      lastRejectedProgress: isResubmission ? latestReport?.persentase_progres : undefined,
     });
     setProgressDialogOpen(true);
   };
@@ -316,11 +376,15 @@ export default function TeknisiViews() {
               canReport={!isReportLocked(assignment)}
               canKendala={!isReportLocked(assignment)}
               canReturn={assignmentHasActiveTools(assignment)}
-              lockedReason={hasFinalProgress(assignment)
-                ? "Laporan akhir sudah dikirim dan menunggu validasi."
-                : assignment.status !== "Aktif"
-                  ? "Status penugasan belum aktif."
-                  : undefined}
+              lockedReason={(() => {
+                if (hasFinalProgress(assignment)) {
+                  return "Laporan akhir sudah dikirim dan menunggu validasi.";
+                }
+                if (assignment.status !== "Aktif") {
+                  return "Status penugasan belum aktif.";
+                }
+                return undefined;
+              })()}
             />
           ))}
         </div>
@@ -356,11 +420,16 @@ export default function TeknisiViews() {
         assignmentId={progressContext?.id ?? null}
         assignmentTitle={progressContext?.title}
         existingReports={progressContext?.reports || 0}
+        approvedReports={progressContext?.approvedReports || 0}
         userId={userId}
         hasActiveTools={progressContext?.hasActiveTools}
         tools={progressContext?.tools || []}
+        isResubmission={progressContext?.isResubmission}
+        lastRejectedProgress={progressContext?.lastRejectedProgress}
         onSuccess={() => {
           fetchAssignments();
+          // Reset reminder status after successful report
+          setReminderShownToday(null);
         }}
       />
 
@@ -385,6 +454,27 @@ export default function TeknisiViews() {
           fetchAssignments();
         }}
       />
+
+      {/* Daily Report Reminder Dialog */}
+      <Dialog open={showDailyReportReminder} onOpenChange={setShowDailyReportReminder}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pengingat Laporan Harian</DialogTitle>
+            <DialogDescription>
+              Anda belum mengirim laporan progres hari ini untuk penugasan yang aktif. 
+              Pastikan untuk melaporkan progres pekerjaan sesuai jadwal yang ditentukan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDailyReportReminder(false)}>
+              Nanti Saja
+            </Button>
+            <Button onClick={() => setShowDailyReportReminder(false)}>
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

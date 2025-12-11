@@ -41,6 +41,10 @@ export async function GET(request: NextRequest) {
           persentase_progres,
           status_progres,
           pelapor_id,
+          status_validasi,
+          divalidasi_oleh,
+          divalidasi_pada,
+          catatan_validasi,
           bukti:bukti_laporan(*)
         )
       `)

@@ -34,20 +34,35 @@ export function AssignmentCard({
 }: AssignmentCardProps) {
   const activeAlat = assignment.alat?.filter((item) => !item.is_returned) || [];
   const totalReports = assignment.laporan_progres?.length || 0;
-  const progressLabel = `Lapor Progres ke-${totalReports + 1}`;
-  const latestProgress = assignment.laporan_progres?.[0];
-  const currentPercentage = latestProgress?.persentase_progres;
+  const approvedReports = assignment.laporan_progres?.filter(report => report.status_validasi === "Disetujui").length || 0;
+  
+  // Find the latest approved report for display
+  const latestApprovedReport = assignment.laporan_progres?.find(report => report.status_validasi === "Disetujui") || null;
+  const latestReport = assignment.laporan_progres?.[0];
+  const isLatestRejected = latestReport?.status_validasi === "Ditolak";
+  
+  // Use approved report for display, fallback to latest if no approved reports
+  const displayProgress = latestApprovedReport || latestReport;
+  const currentPercentage = displayProgress?.persentase_progres;
+  
+  const progressLabel = `Lapor Progres ke-${approvedReports + 1}`;
 
   // Debug logging
   if (assignment.id === 12 || totalReports > 0) {
     console.log(`[Assignment Card Debug] ID: ${assignment.id}`, {
       totalReports,
-      latestProgress: latestProgress
+      displayProgress: displayProgress
         ? {
-            id: latestProgress.id,
-            tanggal_laporan: latestProgress.tanggal_laporan,
-            status_progres: latestProgress.status_progres,
-            persentase_progres: latestProgress.persentase_progres,
+            id: displayProgress.id,
+            tanggal_laporan: displayProgress.tanggal_laporan,
+            status_progres: displayProgress.status_progres,
+            persentase_progres: displayProgress.persentase_progres,
+          }
+        : null,
+      latestReport: latestReport
+        ? {
+            id: latestReport.id,
+            status_validasi: latestReport.status_validasi,
           }
         : null,
       currentPercentage,
@@ -55,6 +70,7 @@ export function AssignmentCard({
         id: r.id,
         tanggal: r.tanggal_laporan,
         persentase: r.persentase_progres,
+        status_validasi: r.status_validasi,
       })),
     });
   }
@@ -85,11 +101,11 @@ export function AssignmentCard({
               : "Belum ditetapkan"}
           </p>
           <p>Supervisor: {assignment.supervisor?.nama || "Tidak diketahui"}</p>
-          {latestProgress && (
+          {displayProgress && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 Laporan Terakhir:
-              </span> {latestProgress.status_progres}
+              </span> {displayProgress.status_progres}
               {currentPercentage != null && (
                 <span className="text-base font-bold text-primary">
                   {currentPercentage}%
@@ -146,7 +162,7 @@ export function AssignmentCard({
           className="flex-1 min-w-[150px]"
           disabled={!canReport}
         >
-          {canReport ? progressLabel : "Menunggu Validasi"}
+          {canReport ? progressLabel : isLatestRejected ? "Laporan Ditolak" : "Menunggu Validasi"}
         </Button>
         <Button
           onClick={onKendala}

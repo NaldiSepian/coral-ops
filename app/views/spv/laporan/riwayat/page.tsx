@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +44,7 @@ export default function RiwayatLaporanPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"Disetujui" | "Ditolak" | "Semua">("Semua");
   const [searchQuery, setSearchQuery] = useState("");
+  const router = useRouter();
 
   const fetchLaporan = useCallback(async () => {
     setLoading(true);
@@ -50,6 +53,8 @@ export default function RiwayatLaporanPage() {
       const params = new URLSearchParams();
       if (statusFilter !== "Semua") {
         params.append("status", statusFilter);
+      } else {
+        params.append("status", "all");
       }
 
       const response = await fetch(`/api/supervisor/laporan-validasi?${params}`, {
@@ -91,24 +96,41 @@ export default function RiwayatLaporanPage() {
     };
   }, [laporan]);
 
+  const handleDetail = (laporanId: number) => {
+    router.push(`/views/spv/laporan/validasi/${laporanId}`);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "Disetujui":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
             <CheckCircle className="w-3 h-3 mr-1" />
             Disetujui
           </Badge>
         );
       case "Ditolak":
         return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+          <Badge variant="destructive">
             <XCircle className="w-3 h-3 mr-1" />
             Ditolak
           </Badge>
         );
       default:
         return <Badge>{status}</Badge>;
+    }
+  };
+
+  const getProgressStatusColor = (status: string) => {
+    switch (status) {
+      case "Sedang Dikerjakan":
+        return "bg-muted/50";
+      case "Hampir Selesai":
+        return "bg-secondary/20";
+      case "Selesai":
+        return "bg-secondary/30";
+      default:
+        return "";
     }
   };
 
@@ -171,7 +193,7 @@ export default function RiwayatLaporanPage() {
       {!loading && filteredLaporan.length > 0 && (
         <div className="space-y-4">
           {filteredLaporan.map((laporanItem) => (
-            <Card key={laporanItem.id} className="p-4 sm:p-6">
+            <Card key={laporanItem.id} className={`p-4 sm:p-6 ${getProgressStatusColor(laporanItem.status_progres)}`}>
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 {/* Left: Info */}
                 <div className="flex-1 min-w-0 space-y-3">
@@ -185,9 +207,9 @@ export default function RiwayatLaporanPage() {
                   </div>
 
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{laporanItem.pelapor.nama}</span>
-                      <span className="text-xs ml-2">• Teknisi</span>
+                      <span className="text-xs">• Teknisi</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
@@ -196,15 +218,15 @@ export default function RiwayatLaporanPage() {
                   </div>
 
                   {laporanItem.catatan && (
-                    <p className="text-sm text-foreground bg-gray-100 p-2 rounded">
-                      {laporanItem.catatan}
+                    <p className="text-sm text-foreground">
+                      Catatan: <strong>{laporanItem.catatan}</strong>
                     </p>
                   )}
 
                   {laporanItem.status_progres && (
-                    <Badge variant="outline" className="w-fit">
-                      {laporanItem.status_progres}
-                    </Badge>
+                    <p className="text-sm text-foreground">
+                      Progres Kerja: <strong>{laporanItem.status_progres}</strong>
+                    </p>
                   )}
 
                   {/* Foto thumbnail */}
@@ -213,30 +235,44 @@ export default function RiwayatLaporanPage() {
                       <img
                         src={laporanItem.foto_url}
                         alt="Laporan"
-                        className="h-20 w-20 object-cover rounded border cursor-pointer hover:opacity-80"
+                        className="h-20 w-20 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={() => window.open(laporanItem.foto_url, "_blank")}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          console.error('Failed to load image:', laporanItem.foto_url);
+                        }}
                       />
                     </div>
                   )}
-
-                  {/* Validasi info */}
-                  <div className="text-xs text-muted-foreground bg-gray-100 p-2 rounded space-y-1">
-                    <div>
-                      Divalidasi oleh: <span className="font-medium">{laporanItem.validator?.nama}</span>
-                    </div>
-                    <div>
-                      {new Date(laporanItem.divalidasi_pada || "").toLocaleString("id-ID")}
-                    </div>
-                    {laporanItem.catatan_validasi && (
-                      <div className="italic border-t pt-1 mt-1">
-                        Catatan: {laporanItem.catatan_validasi}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
-                {/* Right: Status */}
-                <div className="flex-shrink-0">{getStatusBadge(laporanItem.status_validasi)}</div>
+                {/* Right: Status & Action */}
+                <div className="flex flex-col gap-2 sm:items-end w-full sm:w-auto">
+                  {getStatusBadge(laporanItem.status_validasi)}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDetail(laporanItem.id)}
+                    className="w-full sm:w-auto"
+                  >
+                    Detail
+                  </Button>
+                </div>
+              </div>
+
+              {/* Validasi info - Full width below both sections */}
+              <div className="mt-4 pt-3 border-t border-border/50">
+                <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded space-y-1">
+                  <div>
+                    Divalidasi oleh: <span className="font-medium text-foreground">{laporanItem.validator?.nama}</span>
+                  </div>
+                  <div>
+                    {new Date(laporanItem.divalidasi_pada || "").toLocaleString("id-ID")}
+                  </div>
+                  {laporanItem.catatan_validasi && (
+                    <div className="italic text-foreground">{laporanItem.catatan_validasi}</div>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
@@ -245,9 +281,11 @@ export default function RiwayatLaporanPage() {
 
       {/* Empty State */}
       {!loading && filteredLaporan.length === 0 && (
-        <Card className="p-8 text-center text-muted-foreground">
-          <AlertCircle className="w-12 h-12 mx-auto opacity-50 mb-4" />
-          <p>Tidak ada laporan dengan filter yang dipilih</p>
+        <Card className="p-8 text-center">
+          <div className="text-muted-foreground space-y-2">
+            <AlertCircle className="w-12 h-12 mx-auto opacity-50 mb-4" />
+            <p>Tidak ada laporan dengan filter yang dipilih</p>
+          </div>
         </Card>
       )}
     </section>

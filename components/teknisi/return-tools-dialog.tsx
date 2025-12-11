@@ -45,6 +45,8 @@ export function ReturnToolsDialog({
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [returnQuantity, setReturnQuantity] = useState<number>(1);
+  const [quantityError, setQuantityError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -54,18 +56,46 @@ export function ReturnToolsDialog({
     if (!open) return;
     if (!selectedLoanId && tools.length === 1) {
       setSelectedLoanId(tools[0].id);
+      setReturnQuantity(tools[0].jumlah);
       return;
     }
     if (selectedLoanId && !tools.find((loan) => loan.id === selectedLoanId)) {
       setSelectedLoanId(null);
+      setReturnQuantity(1);
+    } else if (selectedLoanId) {
+      const loan = tools.find((loan) => loan.id === selectedLoanId);
+      if (loan) {
+        setReturnQuantity(loan.jumlah);
+        setQuantityError(null);
+      }
     }
   }, [open, tools, selectedLoanId]);
 
   const reset = () => {
     setSelectedLoanId(null);
+    setReturnQuantity(1);
     setFile(null);
     setFileError(null);
+    setQuantityError(null);
     setStatus(null);
+  };
+
+  const handleQuantityChange = (value: string) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue < 1) {
+      setReturnQuantity(1);
+      setQuantityError("Jumlah minimal 1");
+      return;
+    }
+
+    if (activeLoan && numValue > activeLoan.jumlah) {
+      setReturnQuantity(activeLoan.jumlah);
+      setQuantityError(`Jumlah maksimal ${activeLoan.jumlah}`);
+      return;
+    }
+
+    setReturnQuantity(numValue);
+    setQuantityError(null);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,6 +159,10 @@ export function ReturnToolsDialog({
       setStatus("Pilih alat yang ingin dikembalikan");
       return;
     }
+    if (quantityError) {
+      setStatus(quantityError);
+      return;
+    }
     if (!file) {
       setFileError("Foto bukti wajib diunggah");
       return;
@@ -142,7 +176,10 @@ export function ReturnToolsDialog({
       const response = await fetch(`/api/penugasan/${assignmentId}/alat/${activeLoan.alat_id}/return`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ foto_url: fotoUrl }),
+        body: JSON.stringify({ 
+          foto_url: fotoUrl,
+          jumlah_dikembalikan: returnQuantity
+        }),
       });
 
       if (!response.ok) {
@@ -174,8 +211,7 @@ export function ReturnToolsDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            Kembalikan Alat
-            {assignmentTitle ? ` • ${assignmentTitle}` : ""}
+            Kembalikan Alat{assignmentTitle ? ` • ${assignmentTitle}` : ""}
           </DialogTitle>
         </DialogHeader>
 
@@ -205,6 +241,24 @@ export function ReturnToolsDialog({
               )}
             </div>
 
+            {activeLoan && (
+              <div className="space-y-2">
+                <Label>Jumlah yang Dikembalikan</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max={activeLoan.jumlah}
+                  value={returnQuantity}
+                  onChange={(e) => handleQuantityChange(e.target.value)}
+                  placeholder="Masukkan jumlah"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimal 1, maksimal {activeLoan.jumlah} unit
+                </p>
+                {quantityError && <p className="text-xs text-destructive">{quantityError}</p>}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Foto Bukti Pengembalian</Label>
               <Input type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
@@ -221,7 +275,7 @@ export function ReturnToolsDialog({
             )}
 
             <Button onClick={handleSubmit} disabled={submitting || !assignmentId} className="w-full">
-              {submitting ? "Mengirim..." : "Kembalikan Alat"}
+              {submitting ? "Mengirim..." : `Kembalikan ${returnQuantity} Unit Alat`}
             </Button>
           </div>
         ) : (
