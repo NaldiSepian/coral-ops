@@ -11,7 +11,6 @@ CREATE TYPE dokumen_tipe AS ENUM ('penugasan','laporan','alat','lain');
 CREATE TYPE status_kehadiran AS ENUM ('Belum Mulai','Sedang Dikerjakan','Selesai');
 CREATE TYPE tipe_kendala_penugasan AS ENUM ('Cuaca','Akses','Teknis','Lain');
 CREATE TYPE status_laporan_progres AS ENUM ('Menunggu','Sedang Dikerjakan','Hampir Selesai','Selesai');
-CREATE TYPE jenis_bukti_laporan AS ENUM ('Before','After');
 
 -- =========================
 -- EXTENSIONS
@@ -126,19 +125,24 @@ CREATE TABLE IF NOT EXISTS laporan_progres (
 -- =========================
 -- TABEL bukti_laporan
 -- =========================
+-- Struktur 1 row per pair (before/after dalam satu baris)
 CREATE TABLE IF NOT EXISTS bukti_laporan (
   id SERIAL PRIMARY KEY,
   laporan_id INT NOT NULL REFERENCES laporan_progres(id) ON DELETE CASCADE,
   pair_key UUID NOT NULL DEFAULT gen_random_uuid(),
-  tipe jenis_bukti_laporan NOT NULL,
   judul VARCHAR(150),
   deskripsi TEXT,
-  foto_url TEXT NOT NULL,
-  taken_at TIMESTAMP WITH TIME ZONE,
+  before_foto_url TEXT NOT NULL,
+  after_foto_url TEXT NOT NULL,
+  taken_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   taken_by UUID REFERENCES profil(id),
   metadata JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+-- Index untuk performa query
+CREATE INDEX IF NOT EXISTS idx_bukti_laporan_laporan_id ON bukti_laporan(laporan_id);
+CREATE INDEX IF NOT EXISTS idx_bukti_laporan_pair_key ON bukti_laporan(pair_key);
 
 -- =========================
 -- TABEL file_dokumen

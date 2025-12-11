@@ -183,6 +183,7 @@ export async function POST(
       }
     }
 
+    // Validasi pairs - wajib untuk status Selesai
     if (shouldFinalize) {
       if (!Array.isArray(pairs) || pairs.length === 0) {
         return NextResponse.json({ error: "Minimal satu bukti foto before/after wajib untuk status Selesai" }, { status: 400 });
@@ -192,8 +193,14 @@ export async function POST(
       }
     }
 
+    // Sanitize pairs - untuk semua status jika ada pairs yang dikirim
     let sanitizedPairs: BuktiLaporanPairPayload[] = [];
-    if (shouldFinalize && Array.isArray(pairs)) {
+    if (Array.isArray(pairs) && pairs.length > 0) {
+      // Validasi jumlah maksimal
+      if (pairs.length > MAX_PAIR_COUNT) {
+        return NextResponse.json({ error: `Maksimal ${MAX_PAIR_COUNT} bukti foto per laporan` }, { status: 400 });
+      }
+
       try {
         sanitizedPairs = pairs.map((pair: BuktiLaporanPairPayload, index: number) => {
           if (!pair || typeof pair !== 'object') {
@@ -261,33 +268,21 @@ export async function POST(
       }
     }
 
-    if (shouldFinalize && sanitizedPairs.length > 0) {
-      const buktiRows = sanitizedPairs.flatMap((pair) => {
+    // Simpan bukti_laporan jika ada pairs (untuk semua status)
+    if (sanitizedPairs.length > 0) {
+      const buktiRows = sanitizedPairs.map((pair) => {
         const pairKey = pair.pair_key || randomUUID();
-        return [
-          {
-            laporan_id: report.id,
-            pair_key: pairKey,
-            tipe: 'Before',
-            judul: pair.judul,
-            deskripsi: pair.deskripsi,
-            foto_url: pair.before.foto_url,
-            taken_at: pair.before.taken_at || nowIso,
-            taken_by: user.id,
-            metadata: pair.before.metadata || null,
-          },
-          {
-            laporan_id: report.id,
-            pair_key: pairKey,
-            tipe: 'After',
-            judul: pair.judul,
-            deskripsi: pair.deskripsi,
-            foto_url: pair.after.foto_url,
-            taken_at: pair.after.taken_at || nowIso,
-            taken_by: user.id,
-            metadata: pair.after.metadata || null,
-          }
-        ];
+        return {
+          laporan_id: report.id,
+          pair_key: pairKey,
+          judul: pair.judul || null,
+          deskripsi: pair.deskripsi || null,
+          before_foto_url: pair.before.foto_url,
+          after_foto_url: pair.after.foto_url,
+          taken_at: pair.before.taken_at || pair.after.taken_at || nowIso,
+          taken_by: user.id,
+          metadata: pair.before.metadata || pair.after.metadata || null,
+        };
       });
 
       const { error: buktiError } = await supabase

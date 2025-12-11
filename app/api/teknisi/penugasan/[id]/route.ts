@@ -66,7 +66,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: penugasanId } = await params;
+    const { id: penugasanIdStr } = await params;
+    const penugasanId = parseInt(penugasanIdStr);
+
+    if (isNaN(penugasanId)) {
+      return NextResponse.json({ error: "Invalid penugasan ID" }, { status: 400 });
+    }
 
     // Validasi bahwa user adalah teknisi yang assigned ke penugasan ini
     const { data: assignmentCheck, error: checkError } = await supabase
@@ -112,8 +117,8 @@ export async function GET(
             id,
             judul,
             deskripsi,
-            foto_url,
-            tipe,
+            before_foto_url,
+            after_foto_url,
             pair_key
           )
         ),

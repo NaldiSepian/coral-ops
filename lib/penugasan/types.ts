@@ -4,7 +4,6 @@ export type KategoriPenugasan = 'Rekonstruksi' | 'Instalasi' | 'Perawatan';
 export type FrekuensiLaporan = 'Harian' | 'Mingguan';
 export type PeranPengguna = 'Supervisor' | 'Manager' | 'Teknisi';
 export type StatusLaporanProgres = 'Menunggu' | 'Sedang Dikerjakan' | 'Hampir Selesai' | 'Selesai';
-export type JenisBuktiLaporan = 'Before' | 'After';
 export type StatusValidasiLaporan = 'Menunggu' | 'Disetujui' | 'Ditolak';
 
 // Core penugasan interface
@@ -70,10 +69,10 @@ export interface BuktiLaporan {
   id: number;
   laporan_id: number;
   pair_key: string;
-  tipe: JenisBuktiLaporan;
   judul?: string;
   deskripsi?: string;
-  foto_url: string;
+  before_foto_url: string;
+  after_foto_url: string;
   taken_at?: string;
   taken_by?: string;
   metadata?: Record<string, any> | null;
@@ -197,6 +196,65 @@ export interface PenugasanListResponse {
 
 export interface PenugasanDetailResponse {
   data: PenugasanWithRelations;
+}
+
+// Laporan detail types for teknisi/laporan/[id] API
+export interface LaporanDetail {
+  id: number;
+  penugasan_id: number;
+  tanggal_laporan: string;
+  persentase_progres: number;
+  status_progres: StatusLaporanProgres;
+  foto_url: string;
+  catatan?: string;
+  latitude: number | null;
+  longitude: number | null;
+  titik_gps?: string | null;
+  created_at: string;
+  status_validasi?: StatusValidasiLaporan;
+  divalidasi_oleh?: string;
+  divalidasi_pada?: string;
+  catatan_validasi?: string;
+  pairs?: Array<{
+    id?: number;
+    pair_key: string;
+    judul?: string;
+    deskripsi?: string;
+    before_foto_url?: string;
+    after_foto_url?: string;
+  }>;
+  tool_photos?: Array<{
+    alat_id: number;
+    foto_url: string;
+    alat?: {
+      nama: string;
+      foto_url?: string;
+      tipe_alat?: string;
+    };
+  }>;
+}
+
+export interface LaporanDetailResponse {
+  data: {
+    report: LaporanDetail;
+    assignment: {
+      id: number;
+      judul: string;
+      lokasi: any;
+      lokasi_text: string;
+      alat: Array<{
+        id: number;
+        alat_id: number;
+        jumlah: number;
+        is_returned: boolean;
+        alat?: {
+          nama: string;
+          foto_url?: string;
+          tipe_alat?: string;
+        };
+      }>;
+    };
+  };
 }
 
 // Error types

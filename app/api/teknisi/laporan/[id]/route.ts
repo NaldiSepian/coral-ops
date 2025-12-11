@@ -69,6 +69,7 @@ export async function GET(
       .from("laporan_progres")
       .select(`
         *,
+        titik_gps,
         bukti_laporan(*)
       `)
       .eq("id", reportIdNum)
@@ -93,6 +94,7 @@ export async function GET(
         id,
         judul,
         lokasi,
+        lokasi_text: lokasi::varchar,
         alat:peminjaman_alat(
           id,
           alat_id,
@@ -112,37 +114,23 @@ export async function GET(
       );
     }
 
-    // Group bukti_laporan by pair_key
-    const groupedPairs: { [key: string]: any } = {};
-    if (report.bukti_laporan) {
-      report.bukti_laporan.forEach((item: any) => {
-        if (!item.pair_key) return;
+    // Process bukti_laporan pairs (now 1 row per pair with before_foto_url and after_foto_url)
+    const pairs = report.bukti_laporan?.map((item: any) => ({
+      id: item.id,
+      pair_key: item.pair_key,
+      judul: item.judul,
+      deskripsi: item.deskripsi,
+      before_foto_url: item.before_foto_url,
+      after_foto_url: item.after_foto_url
+    })) || [];
 
-        const key = item.pair_key;
-        if (!groupedPairs[key]) {
-          groupedPairs[key] = {
-            id: item.id,
-            pair_key: key,
-            judul: item.judul,
-            deskripsi: item.deskripsi,
-          };
-        }
-
-        if (item.tipe === 'Before') {
-          groupedPairs[key].before = { foto_url: item.foto_url };
-        } else if (item.tipe === 'After') {
-          groupedPairs[key].after = { foto_url: item.foto_url };
-        }
-      });
-    }
-
-    // Get tool photos separately - join through penugasan
+    // Get tool photos from peminjaman_alat (foto_ambil_url)
     const { data: toolPhotos, error: toolPhotosError } = await supabase
       .from("peminjaman_alat")
       .select(`
         alat_id,
         foto_ambil_url,
-        alat:alat(*)
+        alat!alat_id(*)
       `)
       .eq("penugasan_id", penugasanId)
       .not("foto_ambil_url", "is", null);
@@ -152,14 +140,18 @@ export async function GET(
     }
 
     // Process tool photos for first report
-    const toolPhotosData = toolPhotos || [];
+    const toolPhotosData = (toolPhotos || []).map((tp: any) => ({
+      alat_id: tp.alat_id,
+      foto_url: tp.foto_ambil_url || '',
+      alat: tp.alat
+    }));
     const coords = report.titik_gps ? parseWKTPoint(report.titik_gps) : null;
     const processedReport = {
       ...report,
       // Parse titik_gps to latitude/longitude if exists
       latitude: coords ? coords[0] : null,
       longitude: coords ? coords[1] : null,
-      pairs: Object.values(groupedPairs),
+      pairs: pairs,
       tool_photos: toolPhotosData
     };
 

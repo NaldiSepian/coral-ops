@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, AlertCircle, CheckCircle, XCircle, MapPin, Calendar } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, XCircle, MapPin, Calendar, Camera, Wrench, Ruler } from "lucide-react";
 import { ValidasiLaporanDialog } from "@/components/penugasan/detail-penugasan/validasi-laporan-dialog";
 
 interface LaporanItem {
@@ -24,6 +25,7 @@ interface LaporanItem {
   divalidasi_pada?: string;
   catatan_validasi?: string;
   created_at: string;
+  titik_gps?: string;
   penugasan: {
     id: number;
     judul: string;
@@ -31,6 +33,7 @@ interface LaporanItem {
     supervisor_id: string;
     status: string;
     is_deleted: boolean;
+    lokasi?: string;
   };
   pelapor: {
     id: string;
@@ -42,6 +45,17 @@ interface LaporanItem {
     nama: string;
     peran: string;
   };
+  bukti_laporan?: Array<{
+    id: number;
+    pair_key: string;
+    judul?: string;
+    deskripsi?: string;
+    before_foto_url: string;
+    after_foto_url: string;
+    taken_at?: string;
+    taken_by?: string;
+    metadata?: any;
+  }>;
 }
 
 export default function ValidasiLaporanPage() {
@@ -53,6 +67,7 @@ export default function ValidasiLaporanPage() {
   const [validasiDialogOpen, setValidasiDialogOpen] = useState(false);
   const [selectedLaporan, setSelectedLaporan] = useState<LaporanItem | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const router = useRouter();
 
   const fetchLaporan = useCallback(async () => {
     setLoading(true);
@@ -106,6 +121,10 @@ export default function ValidasiLaporanPage() {
   const handleValidasi = (laporanItem: LaporanItem) => {
     setSelectedLaporan(laporanItem);
     setValidasiDialogOpen(true);
+  };
+
+  const handleDetail = (laporanId: number) => {
+    router.push(`/views/spv/laporan/validasi/${laporanId}`);
   };
 
   const handleValidasiSuccess = () => {
@@ -251,16 +270,16 @@ export default function ValidasiLaporanPage() {
                   </div>
 
                   {laporanItem.catatan && (
-                    <p className="text-sm text-foreground bg-card/80 p-2 rounded border">
-                      {laporanItem.catatan}
+                    <p className="text-sm text-foreground bg-card/80">
+                      Catatan: {laporanItem.catatan}
                     </p>
                   )}
 
                   <div className="flex items-center gap-2 flex-wrap">
                     {laporanItem.status_progres && (
-                      <Badge variant="outline" className="w-fit">
-                        {laporanItem.status_progres}
-                      </Badge>
+                      <p className="text-sm text-foreground">
+                        Progres Kerja: {laporanItem.status_progres}
+                      </p>
                     )}
                     {laporanItem.persentase_progres != null && (
                       <Badge className="w-fit font-semibold bg-primary text-primary-foreground">
@@ -305,15 +324,25 @@ export default function ValidasiLaporanPage() {
                 <div className="flex flex-col gap-2 sm:items-end w-full sm:w-auto">
                   {getStatusBadge(laporanItem.status_validasi)}
 
-                  {laporanItem.status_validasi === "Menunggu" && (
+                  <div className="flex gap-2 w-full sm:w-auto">
                     <Button
                       size="sm"
-                      onClick={() => handleValidasi(laporanItem)}
-                      className="w-full sm:w-auto"
+                      variant="outline"
+                      onClick={() => handleDetail(laporanItem.id)}
+                      className="flex-1 sm:flex-none"
                     >
-                      Validasi
+                      Detail
                     </Button>
-                  )}
+                    {laporanItem.status_validasi === "Menunggu" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleValidasi(laporanItem)}
+                        className="flex-1 sm:flex-none"
+                      >
+                        Validasi
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>

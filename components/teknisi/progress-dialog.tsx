@@ -141,10 +141,10 @@ export function ProgressDialog({
 }: ProgressDialogProps) {
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [status, setStatus] = useState<StatusLaporanProgres>(
-    existingReports === 0 ? "Sedang Dikerjakan" : "Hampir Selesai"
+    existingReports === 0 ? "Menunggu" : "Hampir Selesai"
   );
   const [persentase, setPersentase] = useState<number>(
-    existingReports === 0 ? 11 : 76
+    existingReports === 0 ? 5 : 76
   );
   const [persentaseError, setPersentaseError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -270,7 +270,10 @@ export function ProgressDialog({
     });
   };
 
-  const ensurePairsComplete = () => {
+  const ensurePairsComplete = (requirePairs: boolean) => {
+    // Jika tidak wajib (bukan status Selesai), skip validasi
+    if (!requirePairs) return true;
+    
     let valid = true;
     setPhotoPairs((prev) =>
       prev.map((pair) => {
@@ -360,13 +363,19 @@ export function ProgressDialog({
     return data.publicUrl;
   };
 
-  const buildPairsPayload = async (): Promise<Array<{ before_url: string; after_url: string }>> => {
-    const pairs: Array<{ before_url: string; after_url: string }> = [];
+  const buildPairsPayload = async (): Promise<BuktiLaporanPairPayload[]> => {
+    const pairs: BuktiLaporanPairPayload[] = [];
     for (const pair of photoPairs) {
       if (pair.beforeFile && pair.afterFile) {
         const beforeUrl = await uploadPairPhoto(pair.beforeFile, pair.id, 'before');
         const afterUrl = await uploadPairPhoto(pair.afterFile, pair.id, 'after');
-        pairs.push({ before_url: beforeUrl, after_url: afterUrl });
+        pairs.push({
+          pair_key: pair.id,
+          judul: pair.title || undefined,
+          deskripsi: pair.description || undefined,
+          before: { foto_url: beforeUrl },
+          after: { foto_url: afterUrl }
+        });
       }
     }
     return pairs;
@@ -417,7 +426,7 @@ export function ProgressDialog({
       setError(null);
       setFileError(null);
       setLocationStatus(null);
-      setStatus(existingReports === 0 ? "Sedang Dikerjakan" : "Hampir Selesai");
+      setStatus(existingReports === 0 ? "Menunggu" : "Hampir Selesai");
       setReturnTools(false);
       setPhotoPairs((pairs) => (pairs.length === 0 ? [createEmptyPair()] : pairs));
       
@@ -536,13 +545,16 @@ export function ProgressDialog({
       setError("Persentase progres tidak valid. " + persentaseError);
       return;
     }
-    if (!ensurePairsComplete()) {
+    
+    // Foto before/after hanya wajib untuk status "Selesai"
+    const requirePairs = status === "Selesai";
+    if (!ensurePairsComplete(requirePairs)) {
       return;
     }
 
     // Validasi foto pengambilan alat untuk laporan pertama
     const isFirstReport = existingReports === 0;
-    if (isFirstReport) {
+    if (isFirstReport && tools.length > 0) {
       if (toolPhotoMode === 'individual') {
         const missingToolPhotos = toolPhotos.filter(tool => !tool.file);
         if (missingToolPhotos.length > 0) {
@@ -561,14 +573,18 @@ export function ProgressDialog({
     setError(null);
     try {
       const fotoUrl = await uploadPhoto();
+      
+      // Build pairs payload hanya jika status Selesai atau ada foto yang diisi
       const pairsPayload = await buildPairsPayload();
-      if (!pairsPayload.length) {
-        throw new Error("Minimal satu bukti foto before/after wajib dilampirkan");
+      
+      // Validasi pairs hanya untuk status Selesai
+      if (status === "Selesai" && !pairsPayload.length) {
+        throw new Error("Minimal satu bukti foto before/after wajib dilampirkan untuk status Selesai");
       }
 
       // Upload foto pengambilan alat untuk laporan pertama
       let toolPhotosPayload: Array<{ alat_id: number; foto_url: string }> | undefined;
-      if (isFirstReport) {
+      if (isFirstReport && tools.length > 0) {
         toolPhotosPayload = [];
         if (toolPhotoMode === 'individual') {
           for (const toolPhoto of toolPhotos) {
@@ -581,8 +597,9 @@ export function ProgressDialog({
             }
           }
         } else if (toolPhotoMode === 'bulk' && bulkToolFile) {
-          const bulkFotoUrl = await uploadToolPhoto(0, bulkToolFile); // alat_id 0 for bulk
-          for (const tool of tools) {
+          // Upload sekali, gunakan URL yang sama untuk semua alat
+          const bulkFotoUrl = await uploadToolPhoto(Date.now(), bulkToolFile); // Use timestamp as unique identifier for bulk
+          for (const tool of tools.filter(t => !t.is_returned)) {
             toolPhotosPayload.push({
               alat_id: tool.alat_id,
               foto_url: bulkFotoUrl
@@ -684,6 +701,75 @@ export function ProgressDialog({
                 {status === "Selesai" && "100%: Pekerjaan selesai seluruhnya"}
               </p>
             </div>
+
+            <div className="space-y-3">
+            <Label>Lokasi Pelaporan</Label>
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-primary/10 p-2 text-primary">
+                  {loadingLocation ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+                </div>
+                <div className="text-sm flex-1">
+                  {effectiveCoords ? (
+                    <div>
+                      <p className="font-medium">Koordinat digunakan</p>
+                      <p className="text-muted-foreground text-xs">
+                        Lat {effectiveCoords.latitude.toFixed(5)}, Lng {effectiveCoords.longitude.toFixed(5)}
+                      </p>
+                      {manualCoords && (
+                        <p className="text-xs text-primary">Menggunakan input manual</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-medium">Menunggu lokasi...</p>
+                      <p className="text-muted-foreground text-xs">Izinkan GPS atau isi koordinat manual.</p>
+                    </div>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" onClick={requestLocation} disabled={loadingLocation}>
+                  <RefreshCcw className="h-4 w-4" />
+                </Button>
+              </div>
+              {locationStatus && (
+                <p className="text-xs text-destructive">{locationStatus}</p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Latitude (manual)</Label>
+                  <Input
+                    type="number"
+                    step="0.00001"
+                    value={manualLat}
+                    placeholder={coords ? coords.latitude.toFixed(5) : "-"}
+                    onChange={(e) => {
+                      setManualLat(e.target.value);
+                      setError(null);
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Longitude (manual)</Label>
+                  <Input
+                    type="number"
+                    step="0.00001"
+                    value={manualLng}
+                    placeholder={coords ? coords.longitude.toFixed(5) : "-"}
+                    onChange={(e) => {
+                      setManualLng(e.target.value);
+                      setError(null);
+                    }}
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Kosongkan input manual jika ingin menggunakan koordinat GPS.</p>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setMapPickerOpen(true)}>
+                  Pilih via Peta
+                </Button>
+              </div>
+            </div>
+          </div>
 
             <div className="space-y-2">
               <Label>Catatan (opsional)</Label>
@@ -911,74 +997,7 @@ export function ProgressDialog({
             </div>
           )}
 
-          <div className="space-y-3">
-            <Label>Lokasi Pelaporan</Label>
-            <div className="rounded-lg border p-3 space-y-2">
-              <div className="flex items-start gap-3">
-                <div className="rounded-full bg-primary/10 p-2 text-primary">
-                  {loadingLocation ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-                </div>
-                <div className="text-sm flex-1">
-                  {effectiveCoords ? (
-                    <div>
-                      <p className="font-medium">Koordinat digunakan</p>
-                      <p className="text-muted-foreground text-xs">
-                        Lat {effectiveCoords.latitude.toFixed(5)}, Lng {effectiveCoords.longitude.toFixed(5)}
-                      </p>
-                      {manualCoords && (
-                        <p className="text-xs text-primary">Menggunakan input manual</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="font-medium">Menunggu lokasi...</p>
-                      <p className="text-muted-foreground text-xs">Izinkan GPS atau isi koordinat manual.</p>
-                    </div>
-                  )}
-                </div>
-                <Button variant="ghost" size="sm" onClick={requestLocation} disabled={loadingLocation}>
-                  <RefreshCcw className="h-4 w-4" />
-                </Button>
-              </div>
-              {locationStatus && (
-                <p className="text-xs text-destructive">{locationStatus}</p>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Latitude (manual)</Label>
-                  <Input
-                    type="number"
-                    step="0.00001"
-                    value={manualLat}
-                    placeholder={coords ? coords.latitude.toFixed(5) : "-"}
-                    onChange={(e) => {
-                      setManualLat(e.target.value);
-                      setError(null);
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Longitude (manual)</Label>
-                  <Input
-                    type="number"
-                    step="0.00001"
-                    value={manualLng}
-                    placeholder={coords ? coords.longitude.toFixed(5) : "-"}
-                    onChange={(e) => {
-                      setManualLng(e.target.value);
-                      setError(null);
-                    }}
-                  />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground">Kosongkan input manual jika ingin menggunakan koordinat GPS.</p>
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={() => setMapPickerOpen(true)}>
-                  Pilih via Peta
-                </Button>
-              </div>
-            </div>
-          </div>
+          
 
           {status === "Selesai" && (
             <div className="rounded-lg border p-3 space-y-1">
