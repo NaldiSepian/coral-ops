@@ -89,14 +89,6 @@ export default function ProgressReportDetail() {
     };
   }, [reportPosition, assignmentPosition]);
 
-  // Check if all tool photos are the same
-  const areAllToolPhotosSame = useMemo(() => {
-    if (!report?.tool_photos || report.tool_photos.length === 0) return false;
-
-    const firstPhoto = report.tool_photos[0].foto_url;
-    return report.tool_photos.every(photo => photo.foto_url === firstPhoto);
-  }, [report?.tool_photos]);
-
   return (
     <LaporanDetail
       report={report}
@@ -106,7 +98,6 @@ export default function ProgressReportDetail() {
       reportPosition={reportPosition}
       assignmentPosition={assignmentPosition}
       locationValidation={validateReportLocation}
-      areAllToolPhotosSame={areAllToolPhotosSame}
       onRetry={fetchReportDetail}
       onBack={() => router.back()}
     />

@@ -92,14 +92,10 @@ export default function PenugasanPage() {
   };
 
   const getActiveAlatCount = (item: PenugasanListItem) => {
-    if (!item.alat) return 0;
-    const uniqueIds = new Set<number>();
-    for (const entry of item.alat) {
-      if (typeof entry.alat_id === 'number' && entry.is_returned !== true) {
-        uniqueIds.add(entry.alat_id);
-      }
-    }
-    return uniqueIds.size;
+    if (!item.alat || !Array.isArray(item.alat)) return 0;
+    
+    // Hitung semua alat yang di-assign (tanpa memperdulikan status return)
+    return item.alat.length;
   };
 
   // Calculate stats dari penugasanData array (current page only)
@@ -228,51 +224,60 @@ export default function PenugasanPage() {
         ) : (
           <div className="space-y-4">
             {penugasanData.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="space-y-4">
                 {penugasanData.map((item) => (
                   <div key={item.id} className="rounded-lg border p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="space-y-2">
-                      <h3 className="font-medium line-clamp-2">{item.judul}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          item.status === 'Aktif' ? 'bg-blue-100 text-blue-800' :
-                          item.status === 'Selesai' ? 'bg-green-100 text-green-800' :
-                          item.status === 'Dibatalkan' ? 'bg-red-100 text-red-800' :
-                          item.status === 'Menunggu Validasi' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {item.status}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          item.kategori === 'Rekonstruksi' ? 'bg-orange-100 text-orange-800' :
-                          item.kategori === 'Instalasi' ? 'bg-purple-100 text-purple-800' :
-                          'bg-cyan-100 text-cyan-800'
-                        }`}>
-                          {item.kategori}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <span>Mulai: {new Date(item.start_date).toLocaleDateString('id-ID')}</span>
-                        {item.end_date && <span>Selesai: {new Date(item.end_date).toLocaleDateString('id-ID')}</span>}
-                      </div>
-                      {item.supervisor && <div>Supervisor: {item.supervisor.nama}</div>}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>{item.teknisi?.[0]?.count || 0} Teknisi</span>
-                          <span>{getActiveAlatCount(item)} Alat</span>
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      {/* Left side - Title and badges */}
+                      <div className="flex-1 space-y-2">
+                        <h3 className="font-medium text-lg">{item.judul}</h3>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            item.status === 'Aktif' ? 'bg-blue-100 text-blue-800' :
+                            item.status === 'Selesai' ? 'bg-green-100 text-green-800' :
+                            item.status === 'Dibatalkan' ? 'bg-red-100 text-red-800' :
+                            item.status === 'Menunggu Validasi' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            item.kategori === 'Rekonstruksi' ? 'bg-orange-100 text-orange-800' :
+                            item.kategori === 'Instalasi' ? 'bg-purple-100 text-purple-800' :
+                            'bg-cyan-100 text-cyan-800'
+                          }`}>
+                            {item.kategori}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex gap-1">
+                      {/* Center - Date and supervisor info */}
+                      <div className="flex-1 space-y-1 text-sm text-muted-foreground">
+                        <div className="flex flex-col sm:flex-row sm:gap-4">
+                          <span>Mulai: {new Date(item.start_date).toLocaleDateString('id-ID')}</span>
+                          {item.end_date && <span>Selesai: {new Date(item.end_date).toLocaleDateString('id-ID')}</span>}
+                        </div>
+                        {item.supervisor && <div>Supervisor: {item.supervisor.nama}</div>}
+                      </div>
+
+                      {/* Right side - Stats and action */}
+                      <div className="flex items-center justify-between lg:justify-end gap-6">
+                        <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium">{item.teknisi?.[0]?.count || 0}</span>
+                            <span>Teknisi</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium">{getActiveAlatCount(item)}</span>
+                            <span>Alat</span>
+                          </span>
+                        </div>
+
                         <button
                           onClick={() => handleViewDetail(item.id)}
-                          className="px-3 py-1 text-sm rounded border hover:bg-muted"
+                          className="px-4 py-2 text-sm rounded border hover:bg-muted transition-colors"
                         >
-                          View
+                          Lihat Detail
                         </button>
                       </div>
                     </div>

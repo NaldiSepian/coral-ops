@@ -3,7 +3,7 @@ import { canEditPenugasan } from "@/lib/penugasan/utils";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { PencilLine } from "lucide-react";
+import { MapPin, PencilLine } from "lucide-react";
 
 // Dynamic import untuk MapComponent
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
@@ -113,6 +113,18 @@ function LocationMap({ position }: { position: [number, number] }) {
             <p><strong>Lokasi Penugasan</strong></p>
             <p>Latitude: {position[0].toFixed(6)}</p>
             <p>Longitude: {position[1].toFixed(6)}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 w-full"
+              onClick={() => {
+                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${position[0]},${position[1]}`;
+                window.open(mapsUrl, '_blank');
+              }}
+            >
+              <MapPin className="w-4 h-4 mr-2" />
+              Buka di Maps
+            </Button>
           </div>
         </Popup>
       </Marker>
@@ -256,10 +268,20 @@ export function PenugasanDetailOverview({ penugasan, onEdit }: PenugasanDetailOv
         </div>
         <div className="rounded-lg border p-3 sm:p-4 text-center">
           <div className="text-lg sm:text-2xl font-bold">
-            {penugasan.end_date ?
-              Math.max(0, Math.ceil((new Date(penugasan.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) :
-              '∞'
-            }
+            {penugasan.end_date ? (() => {
+              const today = new Date();
+              const endDate = new Date(penugasan.end_date);
+              
+              // Set to start of day to avoid timezone issues
+              const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+              const endDateStart = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+              
+              // Calculate difference in days (inclusive)
+              const diffTime = endDateStart.getTime() - todayStart.getTime();
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+              
+              return Math.max(0, diffDays);
+            })() : '∞'}
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground">Hari</p>
         </div>

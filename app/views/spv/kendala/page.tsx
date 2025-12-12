@@ -44,31 +44,12 @@ export default function KendalaPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // State for photo preview dialog
-  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
-
-  // Photo Preview Dialog Component
-  const PhotoPreviewDialog = ({ photoUrl, onClose }: { photoUrl: string | null; onClose: () => void }) => {
-    if (!photoUrl) return null;
-
-    return (
-      <Dialog open={!!photoUrl} onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Preview Foto</DialogTitle>
-          </DialogHeader>
-          <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
-            <Image
-              src={photoUrl}
-              alt="Preview foto"
-              fill
-              className="object-contain"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  };
+  // Approval dialog states
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject' | null>(null);
+  const [approvalNote, setApprovalNote] = useState('');
+  const [approving, setApproving] = useState(false);
+  const [selectedKendalaId, setSelectedKendalaId] = useState<number | null>(null);
 
   // Photo preview state
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);

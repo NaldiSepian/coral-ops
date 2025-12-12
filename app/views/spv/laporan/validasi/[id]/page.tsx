@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,6 +131,7 @@ interface AssignmentDetail {
 export default function ValidasiLaporanDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const laporanId = params.id as string;
 
   const [laporan, setLaporan] = useState<LaporanDetail | null>(null);
@@ -284,7 +285,12 @@ export default function ValidasiLaporanDetailPage() {
   }, [laporanId]);
 
   const handleBack = () => {
-    router.push('/views/spv/laporan/');
+    const from = searchParams.get('from');
+    if (from === 'assignment' && laporan) {
+      router.push(`/views/spv/penugasan/${laporan.penugasan_id}`);
+    } else {
+      router.push('/views/spv/laporan/');
+    }
   };
 
   const handleRetry = () => {

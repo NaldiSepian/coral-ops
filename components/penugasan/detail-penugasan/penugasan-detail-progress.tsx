@@ -25,7 +25,7 @@ export function PenugasanDetailProgress({
   const router = useRouter();
 
   const handleLaporanClick = (laporanId: number) => {
-    router.push(`/views/spv/laporan/validasi/${laporanId}`);
+    router.push(`/views/spv/laporan/validasi/${laporanId}?from=assignment`);
   };
   return (
     <div className="rounded-lg border p-4 sm:p-6">

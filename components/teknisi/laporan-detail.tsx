@@ -14,7 +14,6 @@ import {
   MapPin,
   FileText,
   Camera,
-  Wrench,
   RefreshCcw,
   Ruler,
   AlertCircle,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { LaporanDetail as LaporanDetailType, LaporanDetailResponse } from "@/lib/penugasan/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Dynamic import untuk MapComponent
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
@@ -49,7 +49,6 @@ interface LaporanDetailProps {
     isValid: boolean;
     message: string;
   } | null;
-  areAllToolPhotosSame: boolean;
   onRetry: () => void;
   onBack: () => void;
 }
@@ -117,10 +116,10 @@ export default function LaporanDetail({
   reportPosition,
   assignmentPosition,
   locationValidation,
-  areAllToolPhotosSame,
   onRetry,
   onBack
 }: LaporanDetailProps) {
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   // Fix marker icon paths for Leaflet in client-side
   useEffect(() => {
@@ -222,9 +221,9 @@ export default function LaporanDetail({
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Container - Main Report Information */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-1">
+        {/* Main Report Information */}
+        <div className="space-y-6">
           {/* Report Status and Progress */}
           <Card>
             <CardHeader>
@@ -385,7 +384,7 @@ export default function LaporanDetail({
                         {pair.before_foto_url && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Sebelum</p>
-                            <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                            <div className="relative aspect-video rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(pair.before_foto_url!)}>
                               <Image
                                 src={pair.before_foto_url}
                                 alt="Foto sebelum"
@@ -398,7 +397,7 @@ export default function LaporanDetail({
                         {pair.after_foto_url && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Sesudah</p>
-                            <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                            <div className="relative aspect-video rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(pair.after_foto_url!)}>
                               <Image
                                 src={pair.after_foto_url}
                                 alt="Foto sesudah"
@@ -417,103 +416,32 @@ export default function LaporanDetail({
             </Card>
           )}
         </div>
-
-        {/* Right Container - Tools and Equipment */}
-        <div className="space-y-6">
-          {/* Tool Photos */}
-          {report.tool_photos && report.tool_photos.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wrench className="h-5 w-5" />
-                  Foto Alat
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {areAllToolPhotosSame ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Semua alat menggunakan foto yang sama
-                    </p>
-                    <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted">
-                      <Image
-                        src={report.tool_photos[0].foto_url}
-                        alt="Foto alat"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                    {report.tool_photos.map((toolPhoto, index) => (
-                      <div key={index} className="space-y-2">
-                        <p className="text-sm font-medium">
-                          {toolPhoto.alat?.nama || `Alat ${toolPhoto.alat_id}`}
-                        </p>
-                        <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                          <Image
-                            src={toolPhoto.foto_url}
-                            alt={`Foto ${toolPhoto.alat?.nama || `alat ${toolPhoto.alat_id}`}`}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Assignment Tools */}
-          {assignment?.alat && assignment.alat.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wrench className="h-5 w-5" />
-                  Alat yang Digunakan
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {assignment.alat.map((alatItem) => (
-                    <div key={alatItem.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {alatItem.alat?.foto_url && (
-                          <div className="relative w-10 h-10 rounded overflow-hidden bg-muted">
-                            <Image
-                              src={alatItem.alat.foto_url}
-                              alt={alatItem.alat.nama}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium">{alatItem.alat?.nama || `Alat ${alatItem.alat_id}`}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {alatItem.alat?.tipe_alat || "Tipe tidak diketahui"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={alatItem.is_returned ? "secondary" : "default"}>
-                          {alatItem.is_returned ? "Sudah Dikembalikan" : "Masih Digunakan"}
-                        </Badge>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Jumlah: {alatItem.jumlah}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </div>
+
+      <PhotoPreviewDialog photoUrl={previewPhoto} onClose={() => setPreviewPhoto(null)} />
     </div>
+  );
+}
+
+// Photo Preview Dialog Component
+function PhotoPreviewDialog({ photoUrl, onClose }: { photoUrl: string | null; onClose: () => void }) {
+  if (!photoUrl) return null;
+
+  return (
+    <Dialog open={!!photoUrl} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Preview Foto</DialogTitle>
+        </DialogHeader>
+        <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
+          <Image
+            src={photoUrl}
+            alt="Preview foto"
+            fill
+            className="object-contain"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

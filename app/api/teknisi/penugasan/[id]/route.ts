@@ -145,6 +145,57 @@ export async function GET(
       return NextResponse.json({ error: "Penugasan not found" }, { status: 404 });
     }
 
+    // Get tool photos from peminjaman_alat (foto_ambil_url)
+    const { data: toolPhotos, error: toolPhotosError } = await supabase
+      .from("peminjaman_alat")
+      .select(`
+        alat_id,
+        foto_ambil_url,
+        alat!alat_id(*)
+      `)
+      .eq("penugasan_id", penugasanId)
+      .not("foto_ambil_url", "is", null);
+
+    if (toolPhotosError) {
+      console.error("Error fetching tool photos:", toolPhotosError);
+    }
+
+    // Get return tool photos from peminjaman_alat (foto_kembali_url)
+    const { data: returnToolPhotos, error: returnToolPhotosError } = await supabase
+      .from("peminjaman_alat")
+      .select(`
+        alat_id,
+        foto_kembali_url,
+        alat!alat_id(*)
+      `)
+      .eq("penugasan_id", penugasanId)
+      .not("foto_kembali_url", "is", null);
+
+    if (returnToolPhotosError) {
+      console.error("Error fetching return tool photos:", returnToolPhotosError);
+    }
+
+    // Process tool photos
+    const toolPhotosData = (toolPhotos || []).map((tp: any) => ({
+      alat_id: tp.alat_id,
+      foto_url: tp.foto_ambil_url || '',
+      alat: tp.alat
+    }));
+
+    // Process return tool photos
+    const returnToolPhotosData = (returnToolPhotos || []).map((rtp: any) => ({
+      alat_id: rtp.alat_id,
+      foto_url: rtp.foto_kembali_url || '',
+      alat: rtp.alat
+    }));
+
+    // Add tool photos to response
+    const processedPenugasan = {
+      ...penugasan,
+      tool_photos: toolPhotosData,
+      return_tool_photos: returnToolPhotosData
+    };
+
     // Sort laporan_progres by ID descending (latest first)
     if (penugasan.laporan_progres && Array.isArray(penugasan.laporan_progres)) {
       penugasan.laporan_progres = penugasan.laporan_progres.sort(
@@ -173,7 +224,7 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ data: penugasan });
+    return NextResponse.json({ data: processedPenugasan });
   } catch (error) {
     console.error('Unexpected error in GET /api/teknisi/penugasan/[id]:', error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

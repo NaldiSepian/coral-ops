@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { PenugasanWithRelations, StatusPenugasan } from "@/lib/penugasan/types";
@@ -27,6 +27,7 @@ import {
   XCircle
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Dynamic import untuk MapComponent
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => ({ default: mod.MapContainer })), { ssr: false });
@@ -110,7 +111,7 @@ function LocationMap({ position }: { position: [number, number] }) {
     <MapContainer
       center={position}
       zoom={15}
-      style={{ height: '250px', width: '100%' }}
+      style={{ height: '250px', width: '100%', zIndex: 1 }}
       className="rounded-lg"
       zoomControl={true}
       scrollWheelZoom={false}
@@ -150,6 +151,39 @@ export default function PenugasanDetail({
   attendanceStatus
 }: PenugasanDetailProps) {
   const router = useRouter();
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+
+  // Check if all tool photos are the same
+  const areAllToolPhotosSame = useMemo(() => {
+    if (!assignment?.tool_photos || assignment.tool_photos.length === 0) return false;
+
+    const firstPhoto = assignment.tool_photos[0].foto_url;
+    return assignment.tool_photos.every(photo => photo.foto_url === firstPhoto);
+  }, [assignment?.tool_photos]);
+
+  // Check if all return tool photos are the same
+  const areAllReturnToolPhotosSame = useMemo(() => {
+    if (!assignment?.return_tool_photos || assignment.return_tool_photos.length === 0) return false;
+
+    const firstPhoto = assignment.return_tool_photos[0].foto_url;
+    return assignment.return_tool_photos.every(photo => photo.foto_url === firstPhoto);
+  }, [assignment?.return_tool_photos]);
+
+  // Group return tool photos by URL
+  const groupedReturnToolPhotos = useMemo(() => {
+    if (!assignment?.return_tool_photos || assignment.return_tool_photos.length === 0) return {};
+
+    const groups: { [key: string]: Array<{ alat_id: number; foto_url: string; alat?: { nama: string; tipe_alat?: string; } }> } = {};
+
+    assignment.return_tool_photos.forEach((photo) => {
+      if (!groups[photo.foto_url]) {
+        groups[photo.foto_url] = [];
+      }
+      groups[photo.foto_url].push(photo);
+    });
+
+    return groups;
+  }, [assignment?.return_tool_photos]);
 
   // Fix marker icon paths for Leaflet in client-side
   useEffect(() => {
@@ -330,7 +364,7 @@ export default function PenugasanDetail({
         )}
         <Button variant="outline" onClick={onRetry} className="flex items-center gap-2">
           <RefreshCcw className="h-4 w-4" />
-          Refresh
+          
         </Button>
       </div>
 
@@ -390,6 +424,34 @@ export default function PenugasanDetail({
                   </div>
                   <p className="font-medium">{assignment.supervisor?.nama || "Tidak ditentukan"}</p>
                 </div>
+              </div>
+
+              <Separator />
+
+              {/* Team Members */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <h4 className="font-medium">Teknisi</h4>
+                  <Badge variant="outline" className="text-xs">
+                    {assignment.teknisi?.length || 0} orang
+                  </Badge>
+                </div>
+                {assignment.teknisi && assignment.teknisi.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {assignment.teknisi.map((member, index) => (
+                      <span key={member.id} className="inline-flex items-center gap-1 px-2 py-1 bg-muted/50 rounded-md text-sm">
+                        <User className="h-3 w-3" />
+                        {member.profil?.nama || "Tidak ada nama"}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    <User className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                    <p>Tidak ada anggota tim</p>
+                  </div>
+                )}
               </div>
 
               <Separator />
@@ -510,6 +572,105 @@ export default function PenugasanDetail({
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Tool Photos */}
+          {assignment?.tool_photos && assignment.tool_photos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Foto Pengambilan Alat
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {areAllToolPhotosSame ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Semua alat menggunakan foto yang sama
+                    </p>
+                    <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(assignment.tool_photos?.[0]?.foto_url || null)}>
+                      <Image
+                        src={assignment.tool_photos[0].foto_url}
+                        alt="Foto alat"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                    {assignment.tool_photos.map((toolPhoto, index) => (
+                      <div key={index} className="space-y-2">
+                        <p className="text-sm font-medium">
+                          {toolPhoto.alat?.nama || `Alat ${toolPhoto.alat_id}`}
+                        </p>
+                        <div className="relative aspect-video rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(toolPhoto.foto_url)}>
+                          <Image
+                            src={toolPhoto.foto_url}
+                            alt={`Foto ${toolPhoto.alat?.nama || `alat ${toolPhoto.alat_id}`}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Return Tool Photos */}
+          {assignment?.return_tool_photos && assignment.return_tool_photos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Foto Pengembalian Alat
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {areAllReturnToolPhotosSame ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Semua alat menggunakan foto bukti yang sama
+                    </p>
+                    <div className="relative aspect-video max-w-md rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(assignment.return_tool_photos?.[0]?.foto_url || null)}>
+                      <Image
+                        src={assignment.return_tool_photos[0].foto_url}
+                        alt="Bukti pengembalian alat"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(groupedReturnToolPhotos).map(([fotoUrl, photos]) => {
+                        const toolNames = photos.map(p => p.alat?.nama || `Alat ${p.alat_id}`).join(', ');
+                        return (
+                          <div key={fotoUrl} className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {toolNames}
+                            </p>
+                            <div className="relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setPreviewPhoto(fotoUrl)}>
+                              <Image
+                                src={fotoUrl}
+                                alt={`Bukti pengembalian ${toolNames}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Tools */}
           <Card>
             <CardHeader>
@@ -529,7 +690,7 @@ export default function PenugasanDetail({
                       {/* Foto Alat */}
                       <div className="flex-shrink-0">
                         {tool.alat?.foto_url ? (
-                          <div className="w-12 h-12 bg-muted rounded-lg overflow-hidden">
+                          <div className="w-12 h-12 bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewPhoto(tool.alat!.foto_url!); }}>
                             <img
                               src={tool.alat.foto_url}
                               alt={tool.alat.nama}
@@ -557,7 +718,7 @@ export default function PenugasanDetail({
                           <p className="text-xs text-muted-foreground">{tool.alat.tipe_alat}</p>
                         )}
                         <p className="text-xs text-muted-foreground">
-                          Qty: {tool.jumlah} • {tool.is_returned ? "Sudah dikembalikan" : "Belum dikembalikan"}
+                          Qty: {tool.jumlah}
                         </p>
                       </div>
                       
@@ -576,43 +737,33 @@ export default function PenugasanDetail({
             </CardContent>
           </Card>
 
-          {/* Team Members */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Anggota Tim
-                <Badge variant="outline" className="ml-auto">
-                  {assignment.teknisi?.length || 0} orang
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {assignment.teknisi && assignment.teknisi.length > 0 ? (
-                <div className="space-y-3">
-                  {assignment.teknisi.map((member) => (
-                    <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg border">
-                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{member.profil?.nama || "Tidak ada nama"}</p>
-                        <p className="text-xs text-muted-foreground">Teknisi</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Tidak ada anggota tim</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
         </div>
       </div>
+
+      <PhotoPreviewDialog photoUrl={previewPhoto} onClose={() => setPreviewPhoto(null)} />
     </div>
+  );
+}
+
+// Photo Preview Dialog Component
+function PhotoPreviewDialog({ photoUrl, onClose }: { photoUrl: string | null; onClose: () => void }) {
+  if (!photoUrl) return null;
+
+  return (
+    <Dialog open={!!photoUrl} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Preview Foto</DialogTitle>
+        </DialogHeader>
+        <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
+          <Image
+            src={photoUrl}
+            alt="Preview foto"
+            fill
+            className="object-contain"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

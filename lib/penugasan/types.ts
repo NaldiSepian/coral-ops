@@ -49,6 +49,24 @@ export interface PenugasanWithRelations extends Penugasan {
       tipe_alat?: string;
     };
   }>;
+  tool_photos?: Array<{
+    alat_id: number;
+    foto_url: string;
+    alat?: {
+      nama: string;
+      foto_url?: string;
+      tipe_alat?: string;
+    };
+  }>;
+  return_tool_photos?: Array<{
+    alat_id: number;
+    foto_url: string;
+    alat?: {
+      nama: string;
+      foto_url?: string;
+      tipe_alat?: string;
+    };
+  }>;
   laporan_progres?: Array<{
     id: number;
     tanggal_laporan: string;
@@ -224,6 +242,15 @@ export interface LaporanDetail {
     after_foto_url?: string;
   }>;
   tool_photos?: Array<{
+    alat_id: number;
+    foto_url: string;
+    alat?: {
+      nama: string;
+      foto_url?: string;
+      tipe_alat?: string;
+    };
+  }>;
+  return_tool_photos?: Array<{
     alat_id: number;
     foto_url: string;
     alat?: {
