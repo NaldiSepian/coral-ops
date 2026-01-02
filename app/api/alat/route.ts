@@ -13,16 +13,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user is Supervisor
+    // Check if user is Supervisor, Manager, or Teknisi
     const { data: profile, error: profileError } = await supabase
       .from("profil")
       .select("peran")
       .eq("id", user.id)
       .single();
 
-    if (profileError || profile?.peran !== "Supervisor") {
+    if (profileError || (profile?.peran !== "Supervisor" && profile?.peran !== "Manager" && profile?.peran !== "Teknisi")) {
       return NextResponse.json(
-        { error: "Only Supervisors can access inventory" },
+        { error: "Access denied" },
         { status: 403 }
       );
     }
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     // Get query parameters for filtering and pagination
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
+    const tipeAlat = searchParams.get('tipe_alat') || '';
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest) {
     // Add search filter if provided
     if (search) {
       query = query.ilike("nama", `%${search}%`);
+    }
+
+    // Add tipe_alat filter if provided
+    if (tipeAlat) {
+      query = query.eq("tipe_alat", tipeAlat);
     }
 
     const { data: alat, error: alatError } = await query;
@@ -63,6 +69,10 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       countQuery = countQuery.ilike("nama", `%${search}%`);
+    }
+
+    if (tipeAlat) {
+      countQuery = countQuery.eq("tipe_alat", tipeAlat);
     }
 
     const { count, error: countError } = await countQuery;

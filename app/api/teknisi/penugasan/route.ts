@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         (a: any, b: any) => b.id - a.id  // Sort by ID descending (newest first)
       )
     })).filter(item => {
-      if (!statusFilter) return item.status === 'Aktif' || item.status === 'Menunggu Validasi';
+      if (!statusFilter) return item.status === 'Aktif' || item.status === 'Selesai';
       return item.status === statusFilter;
     });
 

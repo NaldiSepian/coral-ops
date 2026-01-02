@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS profil (
 CREATE TABLE IF NOT EXISTS alat (
   id SERIAL PRIMARY KEY,
   nama VARCHAR(100) NOT NULL,
+  tipe_alat VARCHAR(50), -- Alat Rekonstruksi, Alat Ketinggian, Alat Instalasi
   stok_total INT NOT NULL CHECK (stok_total >= 0),
   stok_tersedia INT NOT NULL CHECK (stok_tersedia >= 0 AND stok_tersedia <= stok_total),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),

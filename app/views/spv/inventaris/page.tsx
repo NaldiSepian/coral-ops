@@ -37,7 +37,9 @@ function AlatPageContent() {
       </div>
 
       <Suspense fallback={<div>Loading...</div>}>
-        <AlatList refreshTrigger={refreshTrigger} />
+        <AlatList 
+          refreshTrigger={refreshTrigger} 
+        />
       </Suspense>
     </div>
   );

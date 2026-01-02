@@ -60,8 +60,8 @@ export function CreatePenugasanWizard({ open, onOpenChange, onSuccess }: CreateP
 
   const fetchAvailableResources = async () => {
     try {
-      // Fetch available teknisi
-      const teknisiResponse = await fetch('/api/profil?peran=Teknisi&available=true');
+      // Fetch all teknisi (available and non-available)
+      const teknisiResponse = await fetch('/api/profil?peran=Teknisi');
       if (teknisiResponse.ok) {
         const teknisiData = await teknisiResponse.json();
         setAvailableTeknisi(teknisiData.data || []);

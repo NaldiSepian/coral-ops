@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Wrench, Edit, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { EditAlatDialog } from "./edit-alat-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Alat {
   id: number;
@@ -38,13 +45,15 @@ interface PaginationInfo {
 
 interface AlatListProps {
   refreshTrigger?: number;
+  isReadOnly?: boolean;
 }
 
-export function AlatList({ refreshTrigger }: AlatListProps) {
+export function AlatList({ refreshTrigger, isReadOnly = false }: AlatListProps) {
   const [alat, setAlat] = useState<Alat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [tipeAlatFilter, setTipeAlatFilter] = useState<string>("");
   const [editingAlat, setEditingAlat] = useState<Alat | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deletingAlat, setDeletingAlat] = useState<Alat | null>(null);
@@ -68,6 +77,10 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
         params.append('search', searchTerm);
       }
 
+      if (tipeAlatFilter) {
+        params.append('tipe_alat', tipeAlatFilter);
+      }
+
       const response = await fetch(`/api/alat?${params}`);
 
       if (!response.ok) {
@@ -89,9 +102,35 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
     fetchAlat(search, pagination.offset);
   }, [refreshTrigger]);
 
+  // Handle search and filter changes
+  useEffect(() => {
+    fetchAlat(search, 0); // Reset to first page when search or filter changes
+  }, [search, tipeAlatFilter]);
+
+  // Handle pagination changes
+  useEffect(() => {
+    if (pagination.offset > 0) {
+      fetchAlat(search, pagination.offset);
+    }
+  }, [pagination.offset]);
+
+  // Auto-refresh data every 30 seconds to ensure real-time stock information
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAlat(search, pagination.offset);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [search, pagination.offset, tipeAlatFilter]);
+
   const handleSearch = (value: string) => {
     setSearch(value);
-    fetchAlat(value, 0); // Reset to first page when searching
+    // Don't call fetchAlat here, let useEffect handle it
+  };
+
+  const handleTipeAlatFilter = (value: string) => {
+    setTipeAlatFilter(value === "all" ? "" : value);
+    // Don't call fetchAlat here, let useEffect handle it
   };
 
   const handleEditAlat = (alat: Alat) => {
@@ -100,9 +139,12 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
   };
 
   const handleAlatUpdated = (updatedAlat: Alat) => {
+    // Update local state and refresh from server to ensure data consistency
     setAlat(prev => prev.map(item =>
       item.id === updatedAlat.id ? updatedAlat : item
     ));
+    // Trigger refresh by updating refreshTrigger-like behavior
+    fetchAlat(search, pagination.offset);
   };
 
   const handleDeleteAlat = (alat: Alat) => {
@@ -126,13 +168,15 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
       setAlat(prev => prev.filter(item => item.id !== deletingAlat.id));
       setDeleteDialogOpen(false);
       setDeletingAlat(null);
+      // Re-fetch data to ensure consistency after delete
+      fetchAlat(search, pagination.offset);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete alat");
     }
   };
 
   const handlePageChange = (newOffset: number) => {
-    fetchAlat(search, newOffset);
+    setPagination(prev => ({ ...prev, offset: newOffset }));
   };
 
   const getStatusBadge = (alat: Alat) => {
@@ -177,14 +221,31 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
     <>
       {/* Search Bar */}
       <div className="mb-6">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari alat..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cari alat..."
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Filter Tipe:</span>
+            <Select value={tipeAlatFilter || "all"} onValueChange={handleTipeAlatFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Pilih tipe alat" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Tipe</SelectItem>
+                <SelectItem value="Alat Rekonstruksi">Alat Rekonstruksi</SelectItem>
+                <SelectItem value="Alat Ketinggian">Alat Ketinggian</SelectItem>
+                <SelectItem value="Alat Instalasi">Alat Instalasi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -231,22 +292,26 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
                       {getStatusBadge(item)}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditAlat(item)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteAlat(item)}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {!isReadOnly && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditAlat(item)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAlat(item)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -261,15 +326,22 @@ export function AlatList({ refreshTrigger }: AlatListProps) {
                         <span className="font-semibold text-primary">{item.stok_total}</span>
                       </div>
                       <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Dipakai:</span>
+                        <span className="font-semibold text-orange-600">{item.stok_total - item.stok_tersedia}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Tersedia:</span>
                         <span className={`font-semibold ${item.stok_tersedia === 0 ? 'text-destructive' : 'text-secondary'}`}>
                           {item.stok_tersedia}
                         </span>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-2">
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden flex">
                         <div
-                          className="bg-secondary rounded-full h-2 transition-all"
-                          style={{ width: `${(item.stok_tersedia / item.stok_total) * 100}%` }}
+                          className="bg-orange-500 h-2 transition-all"
+                          style={{ width: `${((item.stok_total - item.stok_tersedia) / item.stok_total) * 100}%` }}
+                        />
+                        <div
+                          className="bg-green-500 h-2 transition-all flex-1"
                         />
                       </div>
                     </div>

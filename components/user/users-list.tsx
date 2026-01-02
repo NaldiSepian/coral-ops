@@ -31,9 +31,10 @@ interface User {
 
 interface UsersListProps {
   refreshTrigger?: number;
+  isReadOnly?: boolean;
 }
 
-export function UsersList({ refreshTrigger }: UsersListProps) {
+export function UsersList({ refreshTrigger, isReadOnly = false }: UsersListProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,22 +200,26 @@ export function UsersList({ refreshTrigger }: UsersListProps) {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditUser(user)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteUser(user)}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {!isReadOnly && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditUser(user)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteUser(user)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardHeader>

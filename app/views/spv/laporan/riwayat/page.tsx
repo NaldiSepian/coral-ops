@@ -97,7 +97,7 @@ export default function RiwayatLaporanPage() {
   }, [laporan]);
 
   const handleDetail = (laporanId: number) => {
-    router.push(`/views/spv/laporan/validasi/${laporanId}`);
+    router.push(`/views/spv/laporan/${laporanId}`);
   };
 
   const getStatusBadge = (status: string) => {

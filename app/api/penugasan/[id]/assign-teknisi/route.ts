@@ -45,9 +45,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    if (penugasan.status !== "Aktif" && penugasan.status !== "Menunggu Validasi") {
+    if (penugasan.status !== "Aktif") {
       return NextResponse.json(
-        { error: "Can only assign to active or pending validation penugasan" },
+        { error: "Can only assign to active penugasan" },
         { status: 400 }
       );
     }  const body = await request.json();

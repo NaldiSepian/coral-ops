@@ -48,7 +48,7 @@ export default function Navbar({ role, nama }: NavbarProps) {
   const getNavItems = (role: string | null) => {
     if (role === "Supervisor") {
       return [
-        { href: "/views/spv", label: "Dashboard SPV", type: "link" },
+        { href: "/views/spv", label: "Home", type: "link" },
         { 
           label: "Penugasan", 
           type: "dropdown",
@@ -63,16 +63,15 @@ export default function Navbar({ role, nama }: NavbarProps) {
       ];
     } else if (role === "Manager") {
       return [
-        { href: "/views/manager", label: "Dashboard", type: "link" },
-        { href: "/views/manager/overview", label: "Overview", type: "link" },
-        { href: "/views/manager/penugasan-final-validasi", label: "Final Validasi", type: "link" },
-        { href: "/views/manager/laporan", label: "Laporan", type: "link" },
+        { href: "/views/manager", label: "Home", type: "link" },
+        { href: "/views/manager/penugasan", label: "Penugasan", type: "link" },
+        { href: "/views/manager/inventaris", label: "Inventaris", type: "link" },
+        { href: "/views/manager/users", label: "User", type: "link" },
       ];
     } else if (role === "Teknisi") {
       return [
-        { href: "/views/teknisi", label: "Dashboard Teknisi", type: "link" },
-        { href: "/views/teknisi/laporan", label: "Laporan", type: "link" },
-        { href: "/views/teknisi/alat", label: "Peminjaman Alat", type: "link" },
+        { href: "/views/teknisi", label: "Penugasan Teknisi", type: "link" },
+        { href: "/views/teknisi/alat", label: "Alat", type: "link" },
       ];
     }
     return [];
@@ -169,7 +168,9 @@ export default function Navbar({ role, nama }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <Link href="/views/settings" className="w-full">
+                  <span>Settings</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />

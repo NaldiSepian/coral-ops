@@ -1,5 +1,5 @@
 // Database enums
-export type StatusPenugasan = 'Aktif' | 'Selesai' | 'Dibatalkan' | 'Menunggu Validasi' | 'Ditolak';
+export type StatusPenugasan = 'Aktif' | 'Selesai' | 'Dibatalkan';
 export type KategoriPenugasan = 'Rekonstruksi' | 'Instalasi' | 'Perawatan';
 export type FrekuensiLaporan = 'Harian' | 'Mingguan';
 export type PeranPengguna = 'Supervisor' | 'Manager' | 'Teknisi';

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const peran = searchParams.get('peran');
+    const available = searchParams.get('available');
 
     let query = supabase
       .from("profil")
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
             is_deleted
           )
         `)
-        .in('penugasan.status', ['Aktif', 'Menunggu Validasi'])
+        .in('penugasan.status', ['Aktif'])
         .eq('penugasan.is_deleted', false);
 
       if (assignmentError) {
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
           const teknisiId = row.teknisi_id;
           const penugasanData = Array.isArray(row.penugasan) ? row.penugasan[0] : row.penugasan;
           const status = penugasanData?.status;
-          if (teknisiId && (status === 'Aktif' || status === 'Menunggu Validasi')) {
+          if (teknisiId && status === 'Aktif') {
             acc[teknisiId] = (acc[teknisiId] || 0) + 1;
           }
           return acc;
@@ -68,6 +69,11 @@ export async function GET(request: NextRequest) {
           ...profile,
           current_assignments: counts[profile.id] || 0,
         }));
+      }
+
+      // Filter available teknisi if requested
+      if (available === 'true') {
+        responseData = responseData.filter((profile: any) => profile.current_assignments === 0);
       }
     }
 

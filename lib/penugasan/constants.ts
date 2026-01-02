@@ -3,8 +3,6 @@ export const PENUGASAN_STATUS = {
   AKTIF: 'Aktif',
   SELESAI: 'Selesai',
   DIBATALKAN: 'Dibatalkan',
-  MENUNGGU_VALIDASI: 'Menunggu Validasi',
-  DITOLAK: 'Ditolak',
 } as const;
 
 // Kategori penugasan sesuai database enum
@@ -25,8 +23,6 @@ export const PENUGASAN_STATUS_LABELS = {
   [PENUGASAN_STATUS.AKTIF]: 'Aktif',
   [PENUGASAN_STATUS.SELESAI]: 'Selesai',
   [PENUGASAN_STATUS.DIBATALKAN]: 'Dibatalkan',
-  [PENUGASAN_STATUS.MENUNGGU_VALIDASI]: 'Menunggu Validasi',
-  [PENUGASAN_STATUS.DITOLAK]: 'Ditolak',
 } as const;
 
 // Label untuk kategori penugasan
@@ -47,8 +43,6 @@ export const PENUGASAN_STATUS_COLORS = {
   [PENUGASAN_STATUS.AKTIF]: 'bg-blue-100 text-blue-800',
   [PENUGASAN_STATUS.SELESAI]: 'bg-green-100 text-green-800',
   [PENUGASAN_STATUS.DIBATALKAN]: 'bg-red-100 text-red-800',
-  [PENUGASAN_STATUS.MENUNGGU_VALIDASI]: 'bg-yellow-100 text-yellow-800',
-  [PENUGASAN_STATUS.DITOLAK]: 'bg-gray-100 text-gray-800',
 } as const;
 
 // Warna untuk kategori penugasan

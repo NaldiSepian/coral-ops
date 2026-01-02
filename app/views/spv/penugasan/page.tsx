@@ -104,7 +104,6 @@ export default function PenugasanPage() {
     aktif: penugasanData.filter(item => item.status === 'Aktif').length,
     selesai: penugasanData.filter(item => item.status === 'Selesai').length,
     dibatalkan: penugasanData.filter(item => item.status === 'Dibatalkan').length,
-    menungguValidasi: penugasanData.filter(item => item.status === 'Menunggu Validasi').length,
   };
 
   return (
@@ -132,7 +131,7 @@ export default function PenugasanPage() {
         </div>
 
         {/* Sisanya dalam 2x2 grid pada mobile/tablet, masing-masing 1 kolom pada desktop */}
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 lg:col-span-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 lg:col-span-4">
           <div className="rounded-lg border p-4 text-center">
             <div className="text-xl font-bold text-blue-600">{stats.aktif}</div>
             <p className="text-sm text-muted-foreground">Aktif</p>
@@ -144,10 +143,6 @@ export default function PenugasanPage() {
           <div className="rounded-lg border p-4 text-center">
             <div className="text-xl font-bold text-red-600">{stats.dibatalkan}</div>
             <p className="text-sm text-muted-foreground">Dibatalkan</p>
-          </div>
-          <div className="rounded-lg border p-4 text-center">
-            <div className="text-xl font-bold text-yellow-600">{stats.menungguValidasi}</div>
-            <p className="text-sm text-muted-foreground">Menunggu</p>
           </div>
         </div>
       </div>
@@ -174,8 +169,6 @@ export default function PenugasanPage() {
             <option value="Aktif">{PENUGASAN_STATUS.AKTIF}</option>
             <option value="Selesai">{PENUGASAN_STATUS.SELESAI}</option>
             <option value="Dibatalkan">{PENUGASAN_STATUS.DIBATALKAN}</option>
-            <option value="Menunggu Validasi">{PENUGASAN_STATUS.MENUNGGU_VALIDASI}</option>
-            <option value="Ditolak">{PENUGASAN_STATUS.DITOLAK}</option>
           </select>
 
           {/* Kategori filter dropdown */}

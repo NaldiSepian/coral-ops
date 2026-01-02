@@ -55,8 +55,8 @@ export async function POST(
     }
 
     // Check status
-    if (penugasan.status !== 'Aktif' && penugasan.status !== 'Menunggu Validasi') {
-      return NextResponse.json({ error: "Can only assign to active or pending validation penugasan" }, { status: 400 });
+    if (penugasan.status !== 'Aktif') {
+      return NextResponse.json({ error: "Can only assign to active penugasan" }, { status: 400 });
     }
 
     // Parse body

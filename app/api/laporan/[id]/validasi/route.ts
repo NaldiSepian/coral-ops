@@ -73,10 +73,10 @@ export async function POST(
           .rpc('cek_penugasan_siap_selesai', { p_penugasan_id: laporan.penugasan_id });
 
         if (canFinish) {
-          // Update status penugasan jadi "Menunggu Validasi" untuk final approval
+          // Update status penugasan jadi "Selesai" karena semua laporan sudah divalidasi
           await supabase
             .from('penugasan')
-            .update({ status: 'Menunggu Validasi' })
+            .update({ status: 'Selesai' })
             .eq('id', laporan.penugasan_id);
         }
       }

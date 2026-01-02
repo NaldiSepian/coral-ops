@@ -213,7 +213,7 @@ export async function PUT(
 
     if (body.status !== undefined) {
       const requestedStatus = body.status as StatusPenugasan;
-      const validStatuses: StatusPenugasan[] = ['Aktif', 'Selesai', 'Dibatalkan', 'Menunggu Validasi', 'Ditolak'];
+      const validStatuses: StatusPenugasan[] = ['Aktif', 'Selesai', 'Dibatalkan'];
 
       if (!validStatuses.includes(requestedStatus)) {
         return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
@@ -227,8 +227,8 @@ export async function PUT(
         return NextResponse.json({ error: "Only active penugasan can be marked complete" }, { status: 400 });
       }
 
-      if (requestedStatus === 'Dibatalkan' && !['Aktif', 'Menunggu Validasi'].includes(existing.status)) {
-        return NextResponse.json({ error: "Only active or pending penugasan can be cancelled" }, { status: 400 });
+      if (requestedStatus === 'Dibatalkan' && existing.status !== 'Aktif') {
+        return NextResponse.json({ error: "Only active penugasan can be cancelled" }, { status: 400 });
       }
 
       updateData.status = requestedStatus;
@@ -236,6 +236,60 @@ export async function PUT(
       if (requestedStatus === 'Dibatalkan') {
         updateData.is_deleted = false;
         updateData.deleted_at = null;
+      }
+
+      // Jika status diubah menjadi 'Selesai', return semua alat yang belum dikembalikan
+      if (requestedStatus === 'Selesai') {
+        const { data: unreturnedAlat, error: alatError } = await supabase
+          .from('peminjaman_alat')
+          .select('alat_id, jumlah')
+          .eq('penugasan_id', penugasanId)
+          .eq('is_returned', false);
+
+        if (alatError) {
+          console.error('Error fetching unreturned alat:', alatError);
+          return NextResponse.json({ error: "Failed to fetch equipment data" }, { status: 500 });
+        }
+
+        // Return stok untuk setiap alat yang belum dikembalikan
+        if (unreturnedAlat && unreturnedAlat.length > 0) {
+          for (const item of unreturnedAlat) {
+            // Get current stock
+            const { data: currentAlat } = await supabase
+              .from('alat')
+              .select('stok_tersedia')
+              .eq('id', item.alat_id)
+              .single();
+
+            if (currentAlat) {
+              const { error: updateStockError } = await supabase
+                .from('alat')
+                .update({ stok_tersedia: currentAlat.stok_tersedia + item.jumlah })
+                .eq('id', item.alat_id);
+
+              if (updateStockError) {
+                console.error('Error returning stock:', updateStockError);
+                return NextResponse.json({ error: "Failed to return equipment stock" }, { status: 500 });
+              }
+            }
+          }
+
+          // Mark all unreturned alat as returned
+          const { error: markReturnedError } = await supabase
+            .from('peminjaman_alat')
+            .update({ 
+              is_returned: true, 
+              returned_at: new Date().toISOString(),
+              foto_kembali_url: null // No photo for auto-return
+            })
+            .eq('penugasan_id', penugasanId)
+            .eq('is_returned', false);
+
+          if (markReturnedError) {
+            console.error('Error marking alat as returned:', markReturnedError);
+            return NextResponse.json({ error: "Failed to mark equipment as returned" }, { status: 500 });
+          }
+        }
       }
     }
 

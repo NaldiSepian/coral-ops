@@ -369,7 +369,7 @@ export default function EditPenugasanPage() {
   }
 
   // Check if penugasan can be edited
-  const canEdit = penugasan.status === 'Aktif' || penugasan.status === 'Menunggu Validasi';
+  const canEdit = penugasan.status === 'Aktif';
 
   if (!canEdit) {
     return (

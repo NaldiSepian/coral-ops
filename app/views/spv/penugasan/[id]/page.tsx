@@ -11,7 +11,6 @@ import { PenugasanDetailOverview } from "@/components/penugasan/detail-penugasan
 import { PenugasanDetailTeknisi } from "@/components/penugasan/detail-penugasan/penugasan-detail-teknisi";
 import { PenugasanDetailAlat } from "@/components/penugasan/detail-penugasan/penugasan-detail-alat";
 import { PenugasanDetailProgress } from "@/components/penugasan/detail-penugasan/penugasan-detail-progress";
-import { PenugasanDetailFiles } from "@/components/penugasan/detail-penugasan/penugasan-detail-files";
 import { AssignTeknisiDialog } from "@/components/penugasan/assign/assign-teknisi-dialog";
 import { AssignAlatDialog } from "@/components/penugasan/assign/assign-alat-dialog";
 
@@ -328,26 +327,23 @@ export default function PenugasanDetailPage() {
       <PenugasanDetailHeader
         penugasan={penugasan}
         onRefresh={handleRefresh}
-        onPrint={handlePrint}
-        onExport={handleExport}
         onCancel={handleCancel}
         onDelete={handleDelete}
         onComplete={handleComplete}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
-        <TabsList className="grid w-full grid-cols-5 gap-2 rounded-lg bg-muted/40 p-2 mb-5 text-xs sm:text-sm bg-background">
+        <TabsList className="grid w-full grid-cols-4 gap-2 rounded-lg p-2 mb-5 text-xs sm:text-sm bg-background">
           {[
             { value: 'overview', label: 'Overview', icon: '📊' },
             { value: 'teknisi', label: 'Teknisi', icon: '👥' },
             { value: 'alat', label: 'Alat', icon: '🔧' },
-            { value: 'progress', label: 'Progress', icon: '📈' },
-            { value: 'files', label: 'Files', icon: '📁' }
+            { value: 'progress', label: 'Progress', icon: '📈' }
           ].map((tab) => (
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[12px] sm:text-sm bg-card"
+              className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[12px] border border-accent sm:text-sm bg-popover hover:bg-accent/50 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <span className="text-lg sm:hidden" aria-hidden>
                 {tab.icon}
@@ -382,17 +378,6 @@ export default function PenugasanDetailPage() {
         <TabsContent value="progress">
           <PenugasanDetailProgress
             penugasan={penugasan}
-          />
-        </TabsContent>
-
-        {/* Files Tab */}
-        <TabsContent value="files">
-          <PenugasanDetailFiles
-            penugasan={penugasan}
-            onUploadFile={() => {
-              // TODO: Implement file upload
-              alert('Fitur upload file akan diimplementasi dalam iterasi berikutnya');
-            }}
           />
         </TabsContent>
       </Tabs>

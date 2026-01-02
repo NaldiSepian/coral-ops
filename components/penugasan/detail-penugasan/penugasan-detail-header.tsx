@@ -5,8 +5,6 @@ import { PENUGASAN_STATUS, PENUGASAN_KATEGORI } from "@/lib/penugasan/constants"
 import { canCancelPenugasan, canCompletePenugasan } from "@/lib/penugasan/utils";
 import {
   RefreshCw,
-  Printer,
-  Download,
   Ban,
   Trash2,
   CheckCircle2,
@@ -15,8 +13,6 @@ import {
 interface PenugasanDetailHeaderProps {
   penugasan: PenugasanWithRelations;
   onRefresh: () => void;
-  onPrint: () => void;
-  onExport: () => void;
   onCancel: () => void;
   onDelete: () => void;
   onComplete: () => void;
@@ -25,16 +21,12 @@ interface PenugasanDetailHeaderProps {
 export function PenugasanDetailHeader({
   penugasan,
   onRefresh,
-  onPrint,
-  onExport,
   onCancel,
   onDelete,
   onComplete,
 }: PenugasanDetailHeaderProps) {
   const baseActions = [
     { key: "refresh", label: "Refresh", icon: RefreshCw, onClick: onRefresh, variant: "outline" as const },
-    { key: "print", label: "Print", icon: Printer, onClick: onPrint, variant: "outline" as const },
-    { key: "export", label: "Export", icon: Download, onClick: onExport, variant: "outline" as const },
   ];
 
   const conditionalActions = [
@@ -61,7 +53,6 @@ export function PenugasanDetailHeader({
             penugasan.status === 'Aktif' ? 'default' :
             penugasan.status === 'Selesai' ? 'secondary' :
             penugasan.status === 'Dibatalkan' ? 'destructive' :
-            penugasan.status === 'Menunggu Validasi' ? 'outline' :
             'outline'
           }>
             {PENUGASAN_STATUS[penugasan.status as keyof typeof PENUGASAN_STATUS] || penugasan.status}

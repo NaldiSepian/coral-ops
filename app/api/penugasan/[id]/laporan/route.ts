@@ -343,8 +343,8 @@ export async function POST(
       await supabase.from('notifikasi').insert({
         penerima_id: supervisor.supervisor_id,
         pesan: shouldFinalize
-          ? `Laporan FINAL untuk "${supervisor.judul}" menunggu validasi Anda`
-          : `Laporan progres baru untuk "${supervisor.judul}" menunggu validasi Anda`
+          ? `Laporan FINAL baru untuk "${supervisor.judul}" telah dibuat`
+          : `Laporan progres baru untuk "${supervisor.judul}" telah dibuat`
       });
     }
 
@@ -352,8 +352,8 @@ export async function POST(
       pengguna_id: user.id,
       aksi: 'Laporan Progres',
       deskripsi: shouldFinalize
-        ? `Penugasan ${penugasanId} - Laporan final menunggu validasi`
-        : `Penugasan ${penugasanId} tanggal ${reportDate} menunggu validasi`
+        ? `Penugasan ${penugasanId} - Laporan final dibuat`
+        : `Penugasan ${penugasanId} tanggal ${reportDate} - Laporan progres dibuat`
     });
 
     const { count: totalReports } = await supabase

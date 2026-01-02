@@ -114,9 +114,6 @@ export default function TeknisiAssignmentDetail() {
     assignment.status !== "Aktif" || hasFinalProgress(assignment);
 
   const getWarningMessage = (assignment: PenugasanWithRelations): string | null => {
-    if (assignment.status === "Menunggu Validasi") {
-      return "Menunggu validasi supervisor & manager untuk memastikan pekerjaan selesai";
-    }
     const pendingKendala = assignment.perpanjangan?.find((item) => item.status === "Menunggu");
     if (pendingKendala) {
       return "Pengajuan kendala/perpanjangan sedang menunggu respon supervisor";

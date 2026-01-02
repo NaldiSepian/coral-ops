@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Quicksand } from "next/font/google";
+// @ts-ignore
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 

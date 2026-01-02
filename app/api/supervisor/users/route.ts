@@ -2,6 +2,68 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+export async function GET(request: NextRequest) {
+  try {
+    // Check if user is authenticated and is Supervisor or Manager
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is Supervisor or Manager
+    const { data: profile, error: profileError } = await supabase
+      .from("profil")
+      .select("peran")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || (profile?.peran !== "Supervisor" && profile?.peran !== "Manager")) {
+      return NextResponse.json(
+        { error: "Only Supervisors and Managers can view users" },
+        { status: 403 }
+      );
+    }
+
+    // Get all technicians
+    const { data: technicians, error: techniciansError } = await supabase
+      .from("profil")
+      .select(`
+        id,
+        nama,
+        peran,
+        lisensi_teknisi,
+        created_at
+      `)
+      .eq("peran", "Teknisi")
+      .order("created_at", { ascending: false });
+
+    if (techniciansError) {
+      console.error("Error fetching technicians:", techniciansError);
+      return NextResponse.json(
+        { error: "Failed to fetch technicians" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: technicians || []
+    });
+
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check if user is authenticated and is Supervisor

@@ -1,22 +1,6 @@
-// API Routes untuk Penugasan
-// =============================================================================
-// GET /api/penugasan - List semua penugasan milik supervisor yang login
-// - Query params: status, kategori, search, page, limit
-// - Include: count teknisi, count alat, progress summary
-// - Return: { data: [...], pagination: { total, hasMore } }
-//
-// POST /api/penugasan - Buat penugasan baru
-// - Body: { judul, lokasi: {latitude, longitude}, kategori, start_date, end_date?, teknisi_ids: [], alat_assignments: [{alat_id, jumlah}] }
-// - Validasi kategori -> set frekuensi_laporan otomatis
-// - Insert ke tabel penugasan dulu, dapat id
-// - Insert ke penugasan_teknisi dan peminjaman_alat
-// - Kurangi stok_tersedia saat assign alat
-// - Return: penugasan yang dibuat dengan relations
-// =============================================================================
-
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { PenugasanFilters, PenugasanListResponse } from "@/lib/penugasan";
+import { PenugasanListResponse } from "@/lib/penugasan";
 import { PENUGASAN_LIST_LIMIT, PENUGASAN_LIST_DEFAULT_PAGE } from "@/lib/penugasan";
 
 export async function GET(request: NextRequest) {
@@ -31,8 +15,11 @@ export async function GET(request: NextRequest) {
     // Parse query params
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const kategori = searchParams.get('kategori');
     const priority = searchParams.get('priority');
     const search = searchParams.get('search');
+    const sortBy = searchParams.get('sortBy') || 'created_at';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
     const page = parseInt(searchParams.get('page') || PENUGASAN_LIST_DEFAULT_PAGE.toString());
     const limit = parseInt(searchParams.get('limit') || PENUGASAN_LIST_LIMIT.toString());
 
@@ -50,8 +37,12 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     if (status) query = query.eq('status', status);
+    if (kategori) query = query.eq('kategori', kategori);
     if (priority) query = query.eq('priority', priority);
     if (search) query = query.ilike('judul', `%${search}%`);
+
+    // Apply sorting
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
 
     // Apply pagination
     const offset = (page - 1) * limit;

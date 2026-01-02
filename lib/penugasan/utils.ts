@@ -30,28 +30,20 @@ export function isPenugasanCancelled(status: StatusPenugasan): boolean {
   return status === 'Dibatalkan';
 }
 
-export function isPenugasanPending(status: StatusPenugasan): boolean {
-  return status === 'Menunggu Validasi';
-}
-
-export function isPenugasanRejected(status: StatusPenugasan): boolean {
-  return status === 'Ditolak';
-}
-
 export function canEditPenugasan(status: StatusPenugasan): boolean {
-  return status === 'Aktif' || status === 'Menunggu Validasi';
+  return status === 'Aktif';
 }
 
 export function canAssignTeknisi(status: StatusPenugasan): boolean {
-  return status === 'Aktif' || status === 'Menunggu Validasi';
+  return status === 'Aktif';
 }
 
 export function canAssignAlat(status: StatusPenugasan): boolean {
-  return status === 'Aktif' || status === 'Menunggu Validasi';
+  return status === 'Aktif';
 }
 
 export function canCancelPenugasan(status: StatusPenugasan): boolean {
-  return status === 'Aktif' || status === 'Menunggu Validasi';
+  return status === 'Aktif';
 }
 
 export function canCompletePenugasan(status: StatusPenugasan): boolean {
@@ -109,11 +101,9 @@ export function validatePenugasanDate(startDate: string, endDate?: string): { is
 
 export function getPenugasanStatusOrder(status: StatusPenugasan): number {
   const order = {
-    'Menunggu Validasi': 1,
-    'Aktif': 2,
-    'Selesai': 3,
-    'Ditolak': 4,
-    'Dibatalkan': 5,
+    'Aktif': 1,
+    'Selesai': 2,
+    'Dibatalkan': 3,
   };
   return order[status] || 0;
 }

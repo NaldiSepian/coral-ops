@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCcw, Search } from "lucide-react";
+import { Loader2, RefreshCcw, Search, ClipboardList, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
@@ -22,10 +22,8 @@ type ActiveToolList = NonNullable<PenugasanWithRelations["alat"]>;
 const VALIDATION_FILTERS: Array<{ value: StatusPenugasan | "ALL"; label: string }> = [
   { value: "ALL", label: "Semua Status" },
   { value: "Aktif", label: "Aktif" },
-  { value: "Menunggu Validasi", label: "Menunggu Validasi" },
   { value: "Selesai", label: "Selesai" },
   { value: "Dibatalkan", label: "Dibatalkan" },
-  { value: "Ditolak", label: "Ditolak" },
 ];
 
 export default function TeknisiViews() {
@@ -170,7 +168,10 @@ export default function TeknisiViews() {
     if (assignment.status !== "Aktif" || hasFinalProgress(assignment)) {
       return true;
     }
-
+    // Check if end_date has passed
+    if (assignment.end_date && new Date() > new Date(assignment.end_date)) {
+      return true;
+    }
     return false;
   };
 
@@ -224,9 +225,6 @@ export default function TeknisiViews() {
   };
 
   const getWarningMessage = (assignment: PenugasanWithRelations): string | null => {
-    if (assignment.status === "Menunggu Validasi") {
-      return "Menunggu validasi supervisor & manager untuk memastikan pekerjaan selesai";
-    }
     const pendingKendala = assignment.perpanjangan?.find((item) => item.status === "Menunggu");
     if (pendingKendala) {
       return "Pengajuan kendala/perpanjangan sedang menunggu respon supervisor";
@@ -254,6 +252,25 @@ export default function TeknisiViews() {
     validationFilter !== "ALL" ||
     searchTerm.trim() !== "";
 
+  const statistics = useMemo(() => {
+    if (!assignments.length) return null;
+
+    // Total assignments
+    const totalAssignments = assignments.length;
+
+    // Completed assignments
+    const completedAssignments = assignments.filter(a => a.status === "Selesai").length;
+
+    // Total reports
+    const totalReports = assignments.reduce((sum, a) => sum + (a.laporan_progres?.length || 0), 0);
+
+    return {
+      totalAssignments,
+      completedAssignments,
+      totalReports
+    };
+  }, [assignments]);
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -263,6 +280,41 @@ export default function TeknisiViews() {
           <p className="text-sm text-muted-foreground">Pantau progres, laporkan kendala, dan mulai pekerjaan sesuai SOP.</p>
         </div>
       </header>
+
+      {/* Statistics Cards */}
+      {!loading && statistics && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <ClipboardList className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Penugasan</p>
+                <p className="text-2xl font-bold">{statistics.totalAssignments}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Penugasan Selesai</p>
+                <p className="text-2xl font-bold">{statistics.completedAssignments}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <ClipboardList className="h-5 w-5 text-teal-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Laporan</p>
+                <p className="text-2xl font-bold">{statistics.totalReports}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -382,6 +434,9 @@ export default function TeknisiViews() {
                 }
                 if (assignment.status !== "Aktif") {
                   return "Status penugasan belum aktif.";
+                }
+                if (assignment.end_date && new Date() > new Date(assignment.end_date)) {
+                  return "Deadline penugasan sudah lewat.";
                 }
                 return undefined;
               })()}

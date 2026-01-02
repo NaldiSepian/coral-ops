@@ -74,6 +74,58 @@ export async function POST(
       return NextResponse.json({ error: "Failed to complete assignment" }, { status: 500 });
     }
 
+    // Return semua alat yang belum dikembalikan
+    const { data: unreturnedAlat, error: alatError } = await supabase
+      .from('peminjaman_alat')
+      .select('alat_id, jumlah')
+      .eq('penugasan_id', penugasanId)
+      .eq('is_returned', false);
+
+    if (alatError) {
+      console.error('Error fetching unreturned alat:', alatError);
+      return NextResponse.json({ error: "Failed to fetch equipment data" }, { status: 500 });
+    }
+
+    // Return stok untuk setiap alat yang belum dikembalikan
+    if (unreturnedAlat && unreturnedAlat.length > 0) {
+      for (const item of unreturnedAlat) {
+        // Get current stock
+        const { data: currentAlat } = await supabase
+          .from('alat')
+          .select('stok_tersedia')
+          .eq('id', item.alat_id)
+          .single();
+
+        if (currentAlat) {
+          const { error: updateStockError } = await supabase
+            .from('alat')
+            .update({ stok_tersedia: currentAlat.stok_tersedia + item.jumlah })
+            .eq('id', item.alat_id);
+
+          if (updateStockError) {
+            console.error('Error returning stock:', updateStockError);
+            return NextResponse.json({ error: "Failed to return equipment stock" }, { status: 500 });
+          }
+        }
+      }
+
+      // Mark all unreturned alat as returned
+      const { error: markReturnedError } = await supabase
+        .from('peminjaman_alat')
+        .update({ 
+          is_returned: true, 
+          returned_at: new Date().toISOString(),
+          foto_kembali_url: null // No photo for auto-return
+        })
+        .eq('penugasan_id', penugasanId)
+        .eq('is_returned', false);
+
+      if (markReturnedError) {
+        console.error('Error marking alat as returned:', markReturnedError);
+        return NextResponse.json({ error: "Failed to mark equipment as returned" }, { status: 500 });
+      }
+    }
+
     // Log aktivitas
     await supabase.from('log_aktivitas').insert({
       pengguna_id: user.id,

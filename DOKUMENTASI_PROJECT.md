@@ -16,6 +16,33 @@
 
 ---
 
+## 🔁 Perubahan Terbaru (Changelog) — 17 Desember 2025
+
+Ringkasan perubahan terbaru yang sudah diimplementasikan:
+
+- UI/UX
+  - Dashboard **Supervisor** & **Manager** sepenuhnya responsif (mobile/tablet/desktop) ✅
+  - Perbaikan tampilan logo perusahaan agar mengisi kontainer (Next.js Image `fill`) 🖼️
+  - Standarisasi label dan ikon (Wrench, Package untuk statistik alat) 🔧📦
+  - Menambahkan metrik inventaris: **Sedang Dipakai** dan **Total Stok** di dashboard 🧾
+  - Migrasi warna ke CSS variables (`--primary`, `--foreground`, `--muted-foreground`, `--destructive`) untuk dukungan theme switching 🎨
+  - Penyederhanaan palet warna untuk kontras lebih baik ⚪️
+
+- API & Backend
+  - Penugasan API: tambah query params `sortBy`/`sortOrder` (default `created_at` desc) dan filter `kategori` ✅
+  - Manager API: melihat semua penugasan tanpa filter supervisor, menambahkan relation `supervisor` dalam select 🧾
+  - Penambahan endpoint validasi laporan supervisor (`GET /api/supervisor/laporan-validasi`, `POST /api/laporan/[id]/validasi`) ✔️
+
+- Cleanup & Behavior changes
+  - Menghapus tombol Print/Export dari header detail penugasan dan menghapus tab **Files** (komponen `penugasan-detail-files.tsx` dihapus) 🧹
+- Menambahkan fitur download **PDF per laporan** (halaman 1: metadata; halaman 2+ fokus pada foto before/after). Tombol **Download** tersedia di tiap item laporan pada `components/penugasan/detail-penugasan/penugasan-detail-progress.tsx` (client-side, `jspdf` dependency ditambahkan). 📄✅
+  - Penugasan list sekarang diurutkan newest first (`created_at` DESC) 🔃
+  - Semua perubahan telah diuji: build OK, tidak ada TypeScript errors, server berjalan lokal ✅
+
+Catatan: Perubahan ini sudah diverifikasi di environment development (`npm run dev`) pada 17 Desember 2025.
+
+---
+
 ## 👥 Role & Hierarki Pengguna
 
 Project ini memiliki **3 role utama** dengan hierarki sebagai berikut:
@@ -213,6 +240,146 @@ Teknisi (Pekerja Lapangan)
 
 ---
 
+## 🔁 Ringkasan Alur Bisnis (Flowchart) — Rapi & Terverifikasi
+
+Mermaid diagram (visual) — fokus pada proses bisnis (tanpa API):
+
+```mermaid
+flowchart TD
+  SUP[Supervisor]
+  SUP --> CREATE[Buat Penugasan\n(SPK)\n- Pilih kategori, lokasi, tanggal]
+  CREATE --> ASSIGN[Assign Teknisi & Alat\n- Cek stok, buat peminjaman]
+  ASSIGN --> TECH[Teknisi ditugaskan]
+  TECH --> START[Teknisi Mulai Kerja\n- GPS check-in]
+  START --> WORK[Pelaksanaan Pekerjaan]
+  WORK --> REPORT[Teknisi Submit Laporan\n(progress / before-after foto)]
+  REPORT --> VALID{Supervisor Validasi?}
+  VALID -->|Disetujui| FINAL{Laporan Final & Semua Final Disetujui?}
+  FINAL -->|Ya| COMPLETE[Selesaikan Penugasan\n- Supervisor finalize]
+  FINAL -->|Tidak| CONTINUE[Teruskan Pekerjaan]
+  VALID -->|Ditolak| RESUBMIT[Teknisi Submit Ulang Laporan]
+  RESUBMIT --> REPORT
+  COMPLETE --> RETURN[Return Alat & Restock]
+  RETURN --> CLOSED[Penugasan Selesai]
+  CONTINUE --> WORK
+  REPORT --> PERI{Perlu Perpanjangan?}
+  PERI -->|Ya| REQ[Permintaan Perpanjangan oleh Teknisi]
+  REQ --> DEC{Supervisor Approve Perpanjangan?}
+  DEC -->|Approve| EXT[Update deadline → Lanjutkan pekerjaan]
+  DEC -->|Reject| NOTIF[Notifikasi ke Teknisi]
+  NOTIF --> REPORT
+  MAN[Manager (view-only)] --> MON[Monitoring & Analisis]
+  MON --> MAN
+```
+
+ASCII fallback (proses bisnis, ringkas):
+
+```
+Supervisor → Buat Penugasan (SPK)
+  ↓
+Assign Teknisi & Alat (cek stok → buat peminjaman)
+  ↓
+Teknisi Mulai Kerja (GPS check-in)
+  ↓
+Pelaksanaan Pekerjaan
+  ↓
+Teknisi Submit Laporan (progress / before-after)
+  ↓
+Supervisor Validasi:
+  - Jika Disetujui:
+    - Jika laporan final & semua final disetujui → Selesaikan Penugasan → Return Alat & Restock → Selesai
+    - Jika bukan final → Lanjutkan pekerjaan
+  - Jika Ditolak: Teknisi submit ulang (loop)
+
+Tambahan: Teknisi bisa request perpanjangan → Supervisor approve/reject (jika approve update deadline)
+Manager: view-only (monitoring & analisis)
+```
+
+**Lokasi file views (lengkap & komponen terkait):**
+
+Akan tampil per role — setiap entri memuat path view dan komponen-komponen utama yang digunakan (sub-list dari `components/`):
+
+- `app/views/layout.tsx` — Layout global untuk area `views`
+  - Komponen terkait: `app/views/components/Navbar.tsx`, `app/views/components/Footer.tsx`
+
+- `app/views/page.tsx` — Halaman index untuk area `views`
+
+- Manager
+  - `app/views/manager/page.tsx` — Manager dashboard overview
+    - Komponen terkait: `components/dashboard/DashboardHeader.tsx`, `components/dashboard/StatCard.tsx`, `components/notification-bell.tsx`
+  - `app/views/manager/penugasan/page.tsx` — Manager penugasan list
+    - Komponen terkait: `components/penugasan/*` (listing cards, filters)
+  - `app/views/manager/penugasan/[id]/page.tsx` — Manager penugasan detail (view-only)
+    - Komponen terkait: `components/penugasan/detail-penugasan/penugasan-detail-header-manager.tsx`, `components/penugasan/detail-penugasan/penugasan-detail-progress-manager.tsx`, `components/laporan-detail/*`
+  - `app/views/manager/laporan/[id]/page.tsx` — Manager laporan detail/list
+    - Komponen terkait: `components/laporan-detail/*`
+
+- Supervisor (SPV)
+  - `app/views/spv/page.tsx` — Supervisor dashboard overview
+    - Komponen terkait: `components/dashboard/DashboardHeader.tsx`, `components/dashboard/StatCard.tsx`
+  - `app/views/spv/penugasan/page.tsx` — Supervisor penugasan list & create
+    - Komponen terkait: `components/penugasan/create-penugasan/*` (`create-penugasan-wizard.tsx`, `step-1-spk.tsx`, `step-2-teknisi.tsx`, `step-3-alat.tsx`)
+  - `app/views/spv/penugasan/[id]/page.tsx` — Supervisor penugasan detail (edit/assign)
+    - Komponen terkait:
+      - Header & actions: `components/penugasan/detail-penugasan/penugasan-detail-header.tsx`
+      - Overview & sections: `components/penugasan/detail-penugasan/penugasan-detail-overview.tsx`, `penugasan-detail-teknisi.tsx`, `penugasan-detail-alat.tsx`, `penugasan-detail-progress.tsx`
+      - Assign dialogs: `components/penugasan/assign/assign-teknisi-dialog.tsx`, `components/penugasan/assign/assign-alat-dialog.tsx`
+      - Validasi laporan dialog: `components/penugasan/validasi-laporan-dialog.tsx`
+  - `app/views/spv/laporan/page.tsx` & `app/views/spv/laporan/validasi/page.tsx` — Laporan & validasi
+    - Komponen terkait: `components/validasi-laporan/LaporanList.tsx`, `components/validasi-laporan/ValidationDialog.tsx`, `components/laporan-detail/*`
+  - `app/views/spv/inventaris/page.tsx` — Inventaris (alat)
+    - Komponen terkait: `components/alat/alat-list.tsx`, `components/alat/add-alat-dialog.tsx`, `components/alat/edit-alat-dialog.tsx`
+
+- Teknisi
+  - `app/views/teknisi/page.tsx` — Teknisi dashboard / assignment list
+    - Komponen terkait: `components/teknisi/assignment-card.tsx`, `components/notification-bell.tsx`
+  - `app/views/teknisi/penugasan/[id]/page.tsx` — Teknisi penugasan detail (reporting)
+    - Komponen terkait: `components/teknisi/penugasan-detail.tsx`, `components/teknisi/progress-dialog.tsx`, `components/teknisi/return-tools-dialog.tsx`, `components/teknisi/kendala-dialog.tsx`, `components/laporan-detail/*`
+  - `app/views/teknisi/alat/page.tsx` — Daftar alat yang dipinjam
+    - Komponen terkait: `components/alat/*`, `components/teknisi/return-tools-dialog.tsx`
+
+- Users & Profil
+  - `app/views/spv/users/page.tsx`, `app/views/manager/users/page.tsx` — User management
+    - Komponen terkait: `components/user/users-list.tsx`, `components/user/add-user-dialog.tsx`, `components/user/edit-user-dialog.tsx`
+
+- Shared / Utilities
+  - Map & location components used across views: `components/shared/report-location-map.tsx`
+  - Laporan detail components: `components/laporan-detail/*` (AssignedTechniciansCard, LocationCard, PhotoPairsCard, etc.)
+
+**Lokasi file API (utama, diverifikasi di `app/`):**
+
+- `app/api/penugasan/route.ts` — list/create penugasan (GET/POST)
+- `app/api/penugasan/[id]/route.ts` — get/update specific penugasan
+- `app/api/penugasan/[id]/assign-teknisi/route.ts` — assign teknisi
+- `app/api/penugasan/[id]/assign-alat/route.ts` — assign alat / create peminjaman
+- `app/api/penugasan/[id]/start/route.ts` — start work (GPS check-in)
+- `app/api/penugasan/[id]/laporan/route.ts` — submit laporan progres
+- `app/api/penugasan/[id]/approve-selesai/route.ts` — final approval to finish penugasan
+- `app/api/penugasan/[id]/alat/[alatId]/return/route.ts` — return alat endpoint
+- `app/api/laporan/[id]/route.ts` — laporan detail endpoints
+- `app/api/laporan/[id]/validasi/route.ts` — endpoint for supervisor to validate laporan
+- `app/api/supervisor/laporan-validasi/route.ts` — list laporan perlu validasi for supervisor
+- `app/api/manager/penugasan/route.ts` — manager penugasan listing
+- `app/api/manager/penugasan/[id]/route.ts` — manager view detail
+- `app/api/manager/laporan/route.ts` — manager laporan listing
+- `app/api/manager/laporan/[id]/route.ts` — manager laporan detail
+- `app/api/alat/route.ts` — list/tools CRUD
+- `app/api/alat/[id]/route.ts` — alat detail
+- `app/api/perpanjangan/[id]/route.ts` — perpanjangan request handling
+- `app/api/teknisi/penugasan/route.ts` — teknisi's assignment list
+- `app/api/teknisi/penugasan/[id]/route.ts` — teknisi assignment detail
+- `app/api/teknisi/laporan/[id]/route.ts` — teknisi laporan detail
+- `app/api/upload/alat-foto/route.ts` — upload alat foto (storage)
+- `app/api/notifikasi/route.ts` — notifikasi endpoints
+- `app/api/profil/route.ts` — profil endpoints
+
+Poin penting:
+- Semua perubahan stok di-handle secara transaksi (SELECT FOR UPDATE).
+- Notifikasi otomatis dikirim saat status berubah (laporan ditolak/disetujui, penugasan selesai).
+- Endpoint kunci dicantumkan di setiap langkah untuk referensi cepat.
+
+---
+
 ## **🔄 Alur Kerja Lengkap (Workflow) - UPDATED**
 
 > **PENTING**: Setiap laporan progres dari teknisi **WAJIB divalidasi** oleh supervisor sebelum dianggap sah!
@@ -283,19 +450,18 @@ Teknisi wajib lapor sesuai frekuensi (Harian/Mingguan)
 2. Progress Dialog:
    ├── Upload foto (max 5MB)
    ├── Input persentase (slider 0-100%)
-   ├── Pilih status: Sedang Dikerjakan / Hampir Selesai / Selesai
+   ├── Pilih status: Menunggu / Sedang Dikerjakan / Hampir Selesai / Selesai
    ├── Tulis catatan
    └── GPS otomatis diambil
    
-3. Jika status = "Selesai":
+3. Bukti Foto Before-After:
    ├── Wajib upload foto Before-After
    ├── Bisa multiple pairs (Instalasi Kabel, Cat Dinding, dll)
-   ├── Setiap pair:
-   │   • Before photo
-   │   • After photo
-   │   • Judul pair
-   │   • Deskripsi
-   └── Checkbox "Return semua alat?"
+   └── Setiap pair:
+       • Before photo
+       • After photo
+       • Judul pair
+       • Deskripsi
    
 4. Submit laporan:
    ├── POST /api/penugasan/[id]/laporan
@@ -307,7 +473,7 @@ Teknisi wajib lapor sesuai frekuensi (Harian/Mingguan)
 
 ---
 
-### **PHASE 3.5: VALIDASI LAPORAN oleh Supervisor (NEW!)** ✨
+### **PHASE 3.5: VALIDASI LAPORAN oleh Supervisor**
 
 ```
 Supervisor harus validasi setiap laporan sebelum dianggap sah:

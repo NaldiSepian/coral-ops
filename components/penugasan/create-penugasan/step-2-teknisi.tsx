@@ -22,9 +22,10 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
     teknisi.lisensi_teknisi?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const availableFilteredTeknisi = filteredTeknisi.filter(t => t.current_assignments === 0);
   const totalFiltered = filteredTeknisi.length;
   const selectedCount = selectedTeknisi.length;
-  const isAllFilteredSelected = totalFiltered > 0 && selectedCount === totalFiltered;
+  const isAllAvailableSelected = availableFilteredTeknisi.length > 0 && selectedCount === availableFilteredTeknisi.length;
 
   const handleTeknisiToggle = (teknisiId: string) => {
     const newSelected = selectedTeknisi.includes(teknisiId)
@@ -34,10 +35,10 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
   };
 
   const handleSelectAll = () => {
-    if (isAllFilteredSelected) {
+    if (isAllAvailableSelected) {
       onTeknisiChange([]);
     } else {
-      onTeknisiChange(filteredTeknisi.map(t => t.id));
+      onTeknisiChange(availableFilteredTeknisi.map(t => t.id));
     }
   };
 
@@ -57,7 +58,7 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
         />
 
         {/* Select All Button - responsive */}
-        {filteredTeknisi.length > 0 && (
+        {availableFilteredTeknisi.length > 0 && (
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2.5 w-full sm:w-auto text-[11px]">
             <Button
               variant="outline"
@@ -65,10 +66,10 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
               onClick={handleSelectAll}
               className="h-8 px-3 text-xs"
             >
-              {isAllFilteredSelected ? 'Batal Pilih Semua' : 'Pilih Semua'}
+              {isAllAvailableSelected ? 'Batal Pilih Semua' : 'Pilih Semua Available'}
             </Button>
             <span className="text-xs text-muted-foreground text-center sm:text-right">
-              {selectedCount} dari {totalFiltered} dipilih
+              {selectedCount} dari {availableFilteredTeknisi.length} available dipilih
             </span>
           </div>
         )}
@@ -80,6 +81,7 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
           <div className="space-y-2">
             {filteredTeknisi.map((teknisi) => {
               const isSelected = selectedTeknisi.includes(teknisi.id);
+              const isAvailable = teknisi.current_assignments === 0;
               const additionalInfo = teknisi.keahlian?.length
                 ? `Keahlian: ${teknisi.keahlian.join(', ')}`
                 : teknisi.email || teknisi.phone || '';
@@ -90,14 +92,17 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
                   className={`rounded-md border p-2 transition-colors text-[12px] ${
                     isSelected
                       ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'hover:border-primary/40'
+                      : isAvailable
+                      ? 'hover:border-primary/40'
+                      : 'opacity-60 hover:border-muted-foreground/40'
                   }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
                     <div className="flex items-start gap-2 flex-1 min-w-0">
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={() => handleTeknisiToggle(teknisi.id)}
+                        onCheckedChange={() => isAvailable && handleTeknisiToggle(teknisi.id)}
+                        disabled={!isAvailable}
                         aria-label={`Pilih ${teknisi.nama}`}
                       />
                       <div className="space-y-2 min-w-0 flex-1">
@@ -116,6 +121,12 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
                                   Lisensi {teknisi.lisensi_teknisi}
                                 </Badge>
                               )}
+                              <Badge 
+                                variant={isAvailable ? "default" : "destructive"} 
+                                className="px-1.5 py-0.5 text-[10px]"
+                              >
+                                {isAvailable ? 'Available' : 'Sedang Bertugas'}
+                              </Badge>
                             </div>
                           </div>
                         </div>
@@ -128,7 +139,7 @@ export function Step2Teknisi({ availableTeknisi, selectedTeknisi, onTeknisiChang
                     </div>
 
                     <span className="text-[10px] text-muted-foreground sm:text-right">
-                      {isSelected ? 'Sudah dipilih' : 'Belum dipilih'}
+                      {isSelected ? 'Sudah dipilih' : isAvailable ? 'Belum dipilih' : 'Tidak tersedia'}
                     </span>
                   </div>
                 </div>

@@ -1,22 +1,16 @@
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import DownloadLaporanButton from "@/components/laporan-detail/DownloadLaporanButton";
 import { PenugasanWithRelations } from "@/lib/penugasan/types";
 import { useRouter } from "next/navigation";
-import { Download } from "lucide-react";
 
 interface PenugasanDetailProgressProps {
   penugasan: PenugasanWithRelations;
 }
 
 const getValidasiStatusColor = (status?: string) => {
-  switch (status) {
-    case "Disetujui":
-      return "bg-secondary/10 border-secondary/30 text-secondary-foreground";
-    case "Ditolak":
-      return "bg-destructive/10 border-destructive/30 text-destructive";
-    default:
-      return "bg-muted/50 border-border text-muted-foreground";
-  }
+  // Container will remain neutral (no colored background) to match other detail cards.
+  // Status is still shown via the Badge component.
+  return "";
 };
 
 export function PenugasanDetailProgress({
@@ -24,9 +18,11 @@ export function PenugasanDetailProgress({
 }: PenugasanDetailProgressProps) {
   const router = useRouter();
 
+
   const handleLaporanClick = (laporanId: number) => {
-    router.push(`/views/spv/laporan/validasi/${laporanId}?from=assignment`);
+    router.push(`/views/spv/laporan/${laporanId}?from=assignment`);
   };
+
   return (
     <div className="rounded-lg border p-4 sm:p-6">
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4">
@@ -44,7 +40,7 @@ export function PenugasanDetailProgress({
               onClick={() => handleLaporanClick(laporan.id)}
             >
               <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-2">
-                <span className="font-medium">
+                <span className={`font-medium ${laporan.status_validasi === 'Disetujui' ? 'text-secondary-foreground dark:text-secondary' : 'text-foreground'}`}>
                   {new Date(laporan.tanggal_laporan).toLocaleDateString('id-ID')}
                 </span>
                 <div className="flex gap-2 flex-wrap">
@@ -69,7 +65,7 @@ export function PenugasanDetailProgress({
                 </div>
               </div>
               {laporan.catatan && (
-                <p className="text-sm text-muted-foreground mb-2">{laporan.catatan}</p>
+                <p className="text-sm text-foreground mb-2">{laporan.catatan}</p>
               )}
               
               {/* Catatan validasi jika ditolak */}
@@ -94,24 +90,26 @@ export function PenugasanDetailProgress({
 
               {/* Validator info */}
               {laporan.status_validasi !== "Menunggu" && laporan.divalidasi_oleh && (
-                <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+                <div className="text-xs text-foreground mt-2 pt-2 border-t">
                   Divalidasi {new Date(laporan.divalidasi_pada || "").toLocaleString("id-ID")}
                 </div>
               )}
 
-              {/* Download button */}
-              <div className="flex justify-end">
-                {/* TODO: Implement download functionality for individual report */}
-                <Button variant="outline" size="sm" disabled>
-                  <Download className="w-3 h-3 mr-1" />
-                  Download
-                </Button>
-              </div>
+              {/* Download button: hide if rejected, green style if approved */}
+              {laporan.status_validasi !== 'Ditolak' && (
+                <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                  <DownloadLaporanButton
+                    laporan={laporan}
+                    penugasan={penugasan}
+                    className={laporan.status_validasi === 'Disetujui' ? 'text-secondary border-secondary/30 bg-secondary/10 hover:bg-secondary/20 dark:bg-secondary/20' : ''}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="text-center py-8 text-foreground">
           <p className="text-sm sm:text-base">Belum ada laporan progress</p>
         </div>
       )}
