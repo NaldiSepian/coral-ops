@@ -1,0 +1,25 @@
+@startuml
+start
+:Login sebagai Manager;
+:Buka menu Gaji Teknisi;
+:GET /api/bwm/gaji;
+:Tampilkan summary (total teknisi, records, gaji);
+:Group by penugasan, sort by ID desc;
+
+repeat
+  :Search by nama teknisi / judul penugasan;
+  :Klik header penugasan -> toggle expand;
+  if (Expanded?) then (Ya)
+    :Tampilkan daftar teknisi di grup itu;
+    :Klik teknisi -> dialog detail gaji;
+    :Lihat tunjangan_jabatan, bonus_bwm, total_gaji;
+    if (Ingin unduh slip?) then (Ya)
+      :Import @/lib/pdf/payslip;
+      :downloadSlipGajiPdf();
+    else (Tidak)
+    endif
+  endif
+repeat while (Lanjut review?) is (Ya)
+-> (Tidak);
+stop
+@enduml

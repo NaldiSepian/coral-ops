@@ -1,0 +1,52 @@
+@startuml
+actor "Manager" as MGR
+boundary "UI Preferensi" as UI
+control "API /api/bwm/preferensi" as API
+database "Supabase\n(PostgreSQL)" as DB
+
+== LIST PREFERENSI ==
+MGR -> UI: Buka halaman Preferensi
+UI -> API: GET /api/bwm/preferensi
+activate API
+API -> DB: SELECT * FROM preferensi_bwm ORDER BY created_at DESC
+DB --> API: [{ id, nama, best, worst, bo.., ow.., is_active }]
+API --> UI: { data: [...] }
+deactivate API
+UI -> MGR: Tampil daftar preferensi + badge aktif
+
+== BUAT PREFERENSI BARU ==
+MGR -> UI: Klik "Buat Preferensi Baru"
+UI -> MGR: Dialog form (nama, best, worst, BO, OW)
+MGR -> UI: Isi & submit
+note right: Validasi client:\nbest != worst\nBO[best] = 1\nOW[worst] = 1
+
+UI -> API: POST /api/bwm/preferensi
+activate API
+note right: Validasi server:\nrange 1-9,\nbest/worst valid
+API -> DB: INSERT INTO preferensi_bwm (nama, best_criteria, worst_criteria, bo_c1.., ow_c1..)
+DB --> API: { id, ... }
+API --> UI: { message: "Preferensi berhasil dibuat" }
+deactivate API
+UI -> MGR: Toast sukses
+
+== AKTIFKAN PREFERENSI ==
+MGR -> UI: Klik "Aktifkan" pada preferensi
+UI -> API: PATCH /api/bwm/preferensi { id, is_active: true }
+activate API
+API -> DB: UPDATE preferensi_bwm SET is_active=false WHERE is_active=true
+API -> DB: UPDATE preferensi_bwm SET is_active=true WHERE id=$1
+DB --> API: OK
+API --> UI: { message: "Preferensi diaktifkan" }
+deactivate API
+UI -> MGR: Badge berubah hijau
+
+== HAPUS PREFERENSI ==
+MGR -> UI: Klik ikon hapus -> konfirmasi
+UI -> API: DELETE /api/bwm/preferensi?id=$1
+activate API
+API -> DB: DELETE FROM preferensi_bwm WHERE id=$1
+DB --> API: OK
+API --> UI: { message: "Preferensi berhasil dihapus" }
+deactivate API
+UI -> MGR: Toast sukses
+@enduml

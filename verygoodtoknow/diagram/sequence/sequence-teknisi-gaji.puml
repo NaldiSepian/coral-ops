@@ -1,0 +1,33 @@
+@startuml
+actor "Teknisi" as TEK
+boundary "UI Gaji Saya" as UI
+control "API /api/bwm/gaji" as API
+database "Supabase\n(PostgreSQL)" as DB
+
+== LIST GAJI ==
+TEK -> UI: Buka /teknisi/gaji
+UI -> API: GET /api/bwm/gaji
+activate API
+note right: Teknisi: teknisi_id dipaksa = user.id\n(role check di server)
+API -> DB: SELECT gaji_teknisi + JOIN penugasan WHERE teknisi_id = $userId
+DB --> API: [{ penugasan, c1..c5, skor_akhir, tunjangan, bonus, total, status }]
+API --> UI: { data }
+deactivate API
+UI -> TEK: Tampil kartu summary + daftar gaji
+
+== LIHAT DETAIL ==
+TEK -> UI: Pilih penugasan
+UI -> TEK: Tab "Ringkasan": skor, bonus, total
+TEK -> UI: Klik tab "Detail"
+UI -> TEK: Tampil nilai C1-C5 + rincian gaji
+
+== UNDUH SLIP GAJI ==
+alt Status == "disetujui" or "dibayar"
+  TEK -> UI: Klik "Slip Gaji"
+  UI -> UI: import { downloadSlipGajiPdf } from '@/lib/pdf/payslip'
+  UI -> UI: downloadSlipGajiPdf(gaji)
+  UI -> TEK: File PDF terunduh
+else Status == "draft"
+  UI -> TEK: Tombol dinonaktifkan\n"Menunggu finalisasi manager"
+end
+@enduml

@@ -1,0 +1,32 @@
+@startuml
+start
+:Login sebagai Manager;
+:Buka menu Preferensi BWM;
+
+:Buat / Edit Preferensi Baru;
+repeat
+  :Pilih Best Criteria (paling penting);
+  :Pilih Worst Criteria (paling tidak penting);
+  :Isi BO Vector (Best-to-Others, skala 1-9);
+  :Isi OW Vector (Others-to-Worst, skala 1-9);
+  if (Best == Worst?) then (Sama)
+    :Tampilkan error "Best dan Worst harus berbeda";
+    stop
+  else (Beda)
+  endif
+  if (BO[best] != 1?) then (Salah)
+    :Tampilkan error "Best vs itself harus = 1";
+    stop
+  else (OK)
+  endif
+  :Simpan ke database via POST/PUT /api/bwm/preferensi;
+  if (Berhasil?) then (Ya)
+    :Tampilkan toast sukses;
+  else (Gagal)
+    :Tampilkan error dari response;
+  endif
+  :Aktifkan preferensi tertentu via PATCH is_active=true;
+repeat while (Buat/edit lagi?) is (Ya)
+-> (Tidak);
+stop
+@enduml

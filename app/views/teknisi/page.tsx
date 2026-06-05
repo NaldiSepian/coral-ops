@@ -1,0 +1,544 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AssignmentCard } from "@/components/teknisi/assignment-card";
+import { KendalaDialog } from "@/components/teknisi/kendala-dialog";
+import { ProgressDialog } from "@/components/teknisi/progress-dialog";
+import { ReturnToolsDialog } from "@/components/teknisi/return-tools-dialog";
+import { PenugasanWithRelations, StatusPenugasan } from "@/lib/penugasan/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, RefreshCcw, Search, ClipboardList, CheckCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+
+type ActiveToolList = NonNullable<PenugasanWithRelations["alat"]>;
+
+const VALIDATION_FILTERS: Array<{ value: StatusPenugasan | "ALL"; label: string }> = [
+  { value: "ALL", label: "Semua Status" },
+  { value: "Aktif", label: "Aktif" },
+  { value: "Selesai", label: "Selesai" },
+  { value: "Dibatalkan", label: "Dibatalkan" },
+];
+
+export default function TeknisiViews() {
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [assignments, setAssignments] = useState<PenugasanWithRelations[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [kendalaDialogOpen, setKendalaDialogOpen] = useState(false);
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [progressContext, setProgressContext] = useState<{
+    id: number;
+    title: string;
+    reports: number;
+    approvedReports: number;
+    hasActiveTools: boolean;
+    tools: ActiveToolList;
+    isResubmission: boolean;
+    lastRejectedProgress?: number;
+  } | null>(null);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [returnContext, setReturnContext] = useState<{
+    id: number;
+    title: string;
+    tools: ActiveToolList;
+  } | null>(null);
+  const [kendalaAssignmentId, setKendalaAssignmentId] = useState<number | null>(null);
+  const [validationFilter, setValidationFilter] = useState<StatusPenugasan | "ALL">("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showDailyReportReminder, setShowDailyReportReminder] = useState(false);
+  const [reminderShownToday, setReminderShownToday] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      setUserId(data.user?.id || null);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  const fetchAssignments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/teknisi/penugasan", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Gagal memuat penugasan");
+      }
+      setAssignments(payload.data || []);
+      setLastUpdated(new Date().toISOString());
+      
+      // Debug logging
+      if (payload.data && payload.data.length > 0) {
+        console.log('[Fetch Assignments] First assignment:', {
+          id: payload.data[0].id,
+          judul: payload.data[0].judul,
+          laporan_count: payload.data[0].laporan_progres?.length,
+          latest_report: payload.data[0].laporan_progres?.[0]
+        });
+      }
+    } catch (err) {
+      setAssignments([]);
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memuat penugasan");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAssignments();
+  }, [supabase, fetchAssignments]);
+
+  // Check if technician has reported today for active assignments
+  const checkDailyReportStatus = useCallback(() => {
+    if (!assignments.length) return;
+
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Don't show reminder if already shown today
+    if (reminderShownToday === today) return;
+
+    const activeAssignments = assignments.filter(assignment => 
+      assignment.status === "Aktif" && !hasFinalProgress(assignment, userId)
+    );
+
+    // Check if any active assignment with daily frequency hasn't reported today
+    const needsDailyReport = activeAssignments.some(assignment => {
+      // Only check daily frequency assignments
+      if (assignment.frekuensi_laporan !== 'Harian') return false;
+      
+      // Check if there's a report today
+      const hasReportedToday = assignment.laporan_progres?.some(report => {
+        return report.tanggal_laporan === today;
+      });
+      
+      return !hasReportedToday;
+    });
+
+    // Show reminder if daily report is needed
+    if (needsDailyReport) {
+      setShowDailyReportReminder(true);
+      setReminderShownToday(today);
+    }
+  }, [assignments, reminderShownToday]);
+
+  useEffect(() => {
+    if (assignments.length > 0) {
+      checkDailyReportStatus();
+    }
+  }, [assignments, checkDailyReportStatus]);
+
+  const handleKendalaClick = (assignmentId: number) => {
+    setKendalaAssignmentId(assignmentId);
+    setKendalaDialogOpen(true);
+  };
+
+  const handleKendalaDialogChange = (open: boolean) => {
+    setKendalaDialogOpen(open);
+    if (!open) {
+      setKendalaAssignmentId(null);
+    }
+  };
+
+  const hasFinalProgress = (assignment: PenugasanWithRelations, userId?: string | null) =>
+    (assignment.laporan_progres || []).some((report) => report.pelapor_id === userId && report.status_progres === "Selesai");
+
+  const getFinalProgressStatus = (assignment: PenugasanWithRelations, userId?: string | null) => {
+    const finalReport = (assignment.laporan_progres || []).find((report) => report.pelapor_id === userId && report.status_progres === "Selesai");
+    return finalReport?.status_validasi || null;
+  };
+
+  const assignmentHasActiveTools = (assignment: PenugasanWithRelations) =>
+    (assignment.alat || []).some((item) => !item.is_returned);
+
+  const getActiveTools = (assignment: PenugasanWithRelations): ActiveToolList =>
+    (assignment.alat?.filter((item) => !item.is_returned) ?? []) as ActiveToolList;
+
+  const isReportLocked = (assignment: PenugasanWithRelations) => {
+    if (assignment.status !== "Aktif" || hasFinalProgress(assignment, userId)) {
+      return true;
+    }
+    // Check if end_date has passed
+    if (assignment.end_date && new Date() > new Date(assignment.end_date)) {
+      return true;
+    }
+    return false;
+  };
+
+  const handleProgressClick = (assignment: PenugasanWithRelations) => {
+    if (isReportLocked(assignment)) {
+      setInfo("Penugasan ini sedang menunggu validasi supervisor & manager.");
+      return;
+    }
+    const latestReport = assignment.laporan_progres?.[0];
+    const isResubmission = latestReport?.status_validasi === "Ditolak";
+    
+    // Hitung jumlah laporan milik teknisi ini yang sudah disetujui untuk penomoran yang benar
+    const approvedReportsCount = assignment.laporan_progres?.filter(report => report.pelapor_id === userId && report.status_validasi === "Disetujui").length || 0;
+    
+    setProgressContext({
+      id: assignment.id,
+      title: assignment.judul,
+      reports: assignment.laporan_progres?.length || 0,
+      approvedReports: approvedReportsCount,
+      hasActiveTools: assignmentHasActiveTools(assignment),
+      tools: getActiveTools(assignment),
+      isResubmission,
+      lastRejectedProgress: isResubmission ? latestReport?.persentase_progres : undefined,
+    });
+    setProgressDialogOpen(true);
+  };
+
+  const handleViewDetail = (assignment: PenugasanWithRelations) => {
+    router.push(`/views/teknisi/penugasan/${assignment.id}`);
+  };
+
+  const handleReturnClick = (assignment: PenugasanWithRelations) => {
+    const activeTools = getActiveTools(assignment);
+    if (activeTools.length === 0) {
+      setInfo("Semua alat untuk penugasan ini sudah dikembalikan.");
+      return;
+    }
+    setReturnContext({
+      id: assignment.id,
+      title: assignment.judul,
+      tools: activeTools,
+    });
+    setReturnDialogOpen(true);
+  };
+
+  const handleProgressDialogChange = (open: boolean) => {
+    setProgressDialogOpen(open);
+    if (!open) {
+      setProgressContext(null);
+    }
+  };
+
+  const getWarningMessage = (assignment: PenugasanWithRelations): string | null => {
+    const pendingKendala = assignment.perpanjangan?.find((item) => item.status === "Menunggu");
+    if (pendingKendala) {
+      return "Pengajuan kendala/perpanjangan sedang menunggu respon supervisor";
+    }
+    return null;
+  };
+
+  const showComingSoon = (feature: string) => {
+    setInfo(`${feature} akan hadir di iterasi berikutnya. Tetap lanjutkan progres di lapangan ya!`);
+  };
+
+  const filteredAssignments = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return assignments.filter((assignment) => {
+      const matchesValidation = validationFilter === "ALL" || assignment.status === validationFilter;
+      const matchesSearch = !normalizedSearch
+        || assignment.judul.toLowerCase().includes(normalizedSearch)
+        || assignment.lokasi_text?.toLowerCase().includes(normalizedSearch)
+        || assignment.kategori.toLowerCase().includes(normalizedSearch);
+      return matchesValidation && matchesSearch;
+    });
+  }, [assignments, searchTerm, validationFilter]);
+
+  const hasActiveFilters =
+    validationFilter !== "ALL" ||
+    searchTerm.trim() !== "";
+
+  const statistics = useMemo(() => {
+    if (!assignments.length) return null;
+
+    // Total assignments
+    const totalAssignments = assignments.length;
+
+    // Completed assignments
+    const completedAssignments = assignments.filter(a => a.status === "Selesai").length;
+
+    // Total reports
+    const totalReports = assignments.reduce((sum, a) => sum + (a.laporan_progres?.length || 0), 0);
+
+    return {
+      totalAssignments,
+      completedAssignments,
+      totalReports
+    };
+  }, [assignments]);
+
+  return (
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-wide text-primary">Eksekusi Penugasan oleh Teknisi</p>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">Penugasan Saya</h1>
+          <p className="text-sm text-muted-foreground">Pantau progres, laporkan kendala, dan mulai pekerjaan sesuai SOP.</p>
+        </div>
+      </header>
+
+      {/* Statistics Cards */}
+      {!loading && statistics && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <ClipboardList className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Penugasan</p>
+                <p className="text-2xl font-bold">{statistics.totalAssignments}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Penugasan Selesai</p>
+                <p className="text-2xl font-bold">{statistics.completedAssignments}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <ClipboardList className="h-5 w-5 text-teal-600" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Laporan</p>
+                <p className="text-2xl font-bold">{statistics.totalReports}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={fetchAssignments}>
+              Coba Lagi
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {info && !error && (
+        <Alert>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{info}</span>
+            <Button variant="ghost" size="sm" onClick={() => setInfo(null)}>
+              Tutup
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-3 rounded-lg border p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {loading ? "Memuat penugasan..." : `${filteredAssignments.length} dari ${assignments.length} penugasan`}
+            {lastUpdated && !loading && ` • diperbarui ${new Date(lastUpdated).toLocaleTimeString("id-ID")}`}
+          </p>
+          <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="sr-only sm:not-sr-only sm:ml-2">Menyegarkan</span>
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:ml-2">Refresh</span>
+              </>
+            )}
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_minmax(0,1fr)_auto] lg:items-center">
+          <div className="space-y-1">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Validasi</Label>
+            <Select value={validationFilter} onValueChange={(value) => setValidationFilter(value as StatusPenugasan | "ALL")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Semua status" />
+              </SelectTrigger>
+              <SelectContent>
+                {VALIDATION_FILTERS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Cari Penugasan</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Judul / lokasi / kategori"
+                className="pl-8"
+              />
+            </div>
+          </div>
+          {hasActiveFilters && (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setValidationFilter("ALL");
+                  setSearchTerm("");
+                }}
+              >
+                Bersihkan Filter
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2].map((index) => (
+            <Card key={index} className="space-y-3 border-dashed p-4">
+              <div className="h-5 w-1/3 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+              <div className="h-10 w-full animate-pulse rounded bg-muted" />
+            </Card>
+          ))}
+        </div>
+      ) : filteredAssignments.length > 0 ? (
+        <div className="space-y-4">
+          {filteredAssignments.map((assignment) => (
+            <AssignmentCard
+              key={assignment.id}
+              assignment={assignment}
+              userId={userId}
+              warning={getWarningMessage(assignment)}
+              onReport={() => handleProgressClick(assignment)}
+              onKendala={() => handleKendalaClick(assignment.id)}
+              onReturnTool={() => handleReturnClick(assignment)}
+              onViewDetail={() => handleViewDetail(assignment)}
+              canReport={!isReportLocked(assignment)}
+              canKendala={!isReportLocked(assignment)}
+              canReturn={assignmentHasActiveTools(assignment)}
+              lockedReason={(() => {
+                if (hasFinalProgress(assignment, userId)) {
+                  const status = getFinalProgressStatus(assignment, userId);
+                  if (status === "Disetujui") {
+                    return "Laporan akhir sudah divalidasi. Menunggu teknisi lain atau supervisor menyelesaikan penugasan.";
+                  }
+                  return "Laporan akhir sudah dikirim dan menunggu validasi supervisor.";
+                }
+                if (assignment.status !== "Aktif") {
+                  return "Status penugasan belum aktif.";
+                }
+                if (assignment.end_date && new Date() > new Date(assignment.end_date)) {
+                  return "Deadline penugasan sudah lewat.";
+                }
+                return undefined;
+              })()}
+            />
+          ))}
+        </div>
+      ) : (
+        <Card className="p-8 text-center">
+          <p className="text-base font-medium">
+            {hasActiveFilters ? "Tidak ada penugasan yang cocok dengan filter" : "Belum ada penugasan aktif untuk Anda"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {hasActiveFilters
+              ? "Coba ubah kata kunci atau reset filter di atas."
+              : "Supervisor akan memberi tahu jika ada pekerjaan baru. Silakan tetap stand-by."}
+          </p>
+          {hasActiveFilters && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => {
+                setValidationFilter("ALL");
+                setSearchTerm("");
+              }}
+            >
+              Reset Filter
+            </Button>
+          )}
+        </Card>
+      )}
+
+      <ProgressDialog
+        open={progressDialogOpen}
+        onOpenChange={handleProgressDialogChange}
+        assignmentId={progressContext?.id ?? null}
+        assignmentTitle={progressContext?.title}
+        existingReports={progressContext?.reports || 0}
+        approvedReports={progressContext?.approvedReports || 0}
+        userId={userId}
+        hasActiveTools={progressContext?.hasActiveTools}
+        tools={progressContext?.tools || []}
+        isResubmission={progressContext?.isResubmission}
+        lastRejectedProgress={progressContext?.lastRejectedProgress}
+        onSuccess={() => {
+          fetchAssignments().then(() => {
+            setReminderShownToday(null);
+          });
+        }}
+      />
+
+      <KendalaDialog
+        open={kendalaDialogOpen}
+        onOpenChange={handleKendalaDialogChange}
+        assignmentId={kendalaAssignmentId}
+        userId={userId}
+        onSuccess={() => {
+          fetchAssignments();
+        }}
+      />
+
+      <ReturnToolsDialog
+        open={returnDialogOpen}
+        onOpenChange={setReturnDialogOpen}
+        assignmentId={returnContext?.id ?? null}
+        assignmentTitle={returnContext?.title}
+        userId={userId}
+        tools={returnContext?.tools || []}
+        onSuccess={() => {
+          fetchAssignments();
+        }}
+      />
+
+      {/* Daily Report Reminder Dialog */}
+      <Dialog open={showDailyReportReminder} onOpenChange={setShowDailyReportReminder}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pengingat Laporan Harian</DialogTitle>
+            <DialogDescription>
+              Anda belum mengirim laporan progres hari ini untuk penugasan yang aktif. 
+              Pastikan untuk melaporkan progres pekerjaan sesuai jadwal yang ditentukan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDailyReportReminder(false)}>
+              Nanti Saja
+            </Button>
+            <Button onClick={() => setShowDailyReportReminder(false)}>
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

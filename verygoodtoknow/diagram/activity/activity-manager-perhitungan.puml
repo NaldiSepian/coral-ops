@@ -1,0 +1,54 @@
+@startuml
+start
+:Login sebagai Manager;
+:Buka menu Perhitungan BWM;
+:Sistem ambil penugasan status=Selesai + preferensi aktif;
+
+if (Ada penugasan selesai?) then (Tidak)
+  :Tampilkan "Tidak ada penugasan selesai";
+  stop
+else (Ada)
+  :Tampilkan daftar penugasan + status BWM;
+endif
+
+:Pilih penugasan;
+if (BWM sudah draft/final?) then (Draft / Final)
+  :Tombol "Review" atau "Lihat Hasil";
+  :Redirect ke detail /perhitungan/{id};
+else (Belum Dihitung)
+  :Atur plafon bonus (opsional);
+  :Klik "Hitung BWM";
+  :POST /api/bwm/perhitungan;
+
+  partition "Backend" {
+    :Ambil preferensi aktif dari DB;
+    :Ambil raw values per teknisi dari laporan_progres;
+    :parsePreferensi() -> BO/OW vectors;
+    :solveBWM() -> bobot optimal + xi*;
+    if (LP tidak konvergen?) then (Ya)
+      :Fallback ke gradient descent;
+    endif
+    :Hitung batch ranges min/max per kriteria;
+    :Normalisasi Min-Max -> v1..v5;
+    :Hitung skor WSM -> skorAkhir;
+    :Hitung CR (Consistency Ratio);
+    :Hitung tunjangan proporsional;
+    :INSERT/UPDATE perhitungan_bwm;
+    :Update penugasan.bwm_status = 'draft';
+  }
+
+  :Redirect ke halaman detail /perhitungan/{id};
+endif
+
+:Tampilkan hasil (skor, bobot, CR, tunjangan);
+if (Semua CR <= 0.10?) then (Konsisten)
+  :Tombol "Finalisasi Semua" aktif;
+  :PATCH /api/bwm/perhitungan/{id}/finalize;
+  :Update status = "final";
+  :INSERT gaji_teknisi via trigger;
+  :Tampilkan badge "Final";
+else (Tidak Konsisten)
+  :Tampilkan warning "CR > 0.10, periksa preferensi";
+endif
+stop
+@enduml

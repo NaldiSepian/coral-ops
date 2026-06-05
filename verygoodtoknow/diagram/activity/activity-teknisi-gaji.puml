@@ -1,0 +1,22 @@
+@startuml
+start
+:Login sebagai Teknisi;
+:Buka menu Gaji Saya;
+:GET /api/bwm/gaji (filter by teknisi_id = user.id);
+:Tampilkan summary (total proyek, total bonus, total gaji);
+
+repeat
+  :Tampilkan daftar gaji per penugasan;
+  :Pilih penugasan;
+  :Lihat summary (skor, tunjangan, bonus, total);
+  :Klik tab "Detail" -> nilai C1..C5, rincian gaji;
+  if (Status == disetujui / dibayar?) then (Ya)
+    :Tombol "Unduh Slip Gaji" aktif;
+    :downloadSlipGajiPdf() -> PDF;
+  else (Draft)
+    :Tombol tidak aktif, "Menunggu finalisasi";
+  endif
+repeat while (Lihat penugasan lain?) is (Ya)
+-> (Tidak);
+stop
+@enduml

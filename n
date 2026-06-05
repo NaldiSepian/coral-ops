@@ -1,0 +1,49 @@
+bwm
+
+# Conflicts:
+#	app/api/manager/penugasan/[id]/route.ts
+#	app/views/components/Navbar.tsx
+#	package-lock.json
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# interactive rebase in progress; onto e73ce55
+# Last command done (1 command done):
+#    pick 56047f6 # bwm
+# Next command to do (1 remaining command):
+#    pick 84f3f91 # mantaps
+# You are currently rebasing branch 'main' on 'e73ce55'.
+#
+# Changes to be committed:
+#	new file:   TA NALDI SEPTIAN - SEMPRO BAB I, II, III.pdf
+#	new file:   app/api/bwm/gaji/route.ts
+#	new file:   app/api/bwm/perhitungan/[id]/finalize/route.ts
+#	new file:   app/api/bwm/perhitungan/route.ts
+#	new file:   app/api/bwm/preferensi/route.ts
+#	modified:   app/api/manager/penugasan/[id]/route.ts
+#	modified:   app/views/components/Navbar.tsx
+#	new file:   app/views/manager/bwm/gaji/page.tsx
+#	new file:   app/views/manager/bwm/penugasan/[id]/page.tsx
+#	new file:   app/views/manager/bwm/penugasan/page.tsx
+#	new file:   app/views/manager/bwm/preferensi/page.tsx
+#	new file:   app/views/teknisi/gaji/page.tsx
+#	new file:   database/migrations/010_bwm_payroll_schema.sql
+#	new file:   lib/bwm/calculator.test.ts
+#	new file:   lib/bwm/calculator.ts
+#	new file:   lib/bwm/consistency.ts
+#	new file:   lib/bwm/index.ts
+#	new file:   lib/bwm/lp-solver.test.ts
+#	new file:   lib/bwm/lp-solver.ts
+#	new file:   lib/bwm/normalization.test.ts
+#	new file:   lib/bwm/normalization.ts
+#	new file:   lib/bwm/types.ts
+#	modified:   package-lock.json
+#	modified:   package.json
+#	new file:   verygoodtoknow/DEVELOPMENT.md
+#	new file:   verygoodtoknow/RINGKASAN.md
+#	new file:   verygoodtoknow/bmw_implementation.md
+#	new file:   verygoodtoknow/pdf_extracted.md
+#	new file:   verygoodtoknow/read_pdf.py
+#	new file:   vitest.config.ts
+#

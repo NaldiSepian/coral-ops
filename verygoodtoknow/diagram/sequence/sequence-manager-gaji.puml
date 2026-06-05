@@ -1,0 +1,31 @@
+@startuml
+actor "Manager" as MGR
+boundary "UI Gaji" as UI
+control "API /api/bwm/gaji" as API
+database "Supabase\n(PostgreSQL)" as DB
+
+== LIST GAJI ==
+MGR -> UI: Buka /manager/bwm/gaji
+UI -> API: GET /api/bwm/gaji
+activate API
+note right: Manager: tanpa teknisi_id -> semua data
+API -> DB: SELECT gaji_teknisi + JOIN penugasan + JOIN profil
+DB --> API: [{ teknisi, penugasan, periode, tunjangan, bonus, total, status }]
+API --> UI: { data }
+deactivate API
+UI -> MGR: Tampil kartu summary + grup per penugasan
+
+== REVIEW DETAIL ==
+MGR -> UI: Klik header penugasan -> expand
+UI -> MGR: Tampil daftar teknisi
+MGR -> UI: Klik teknisi
+UI -> API: (data sudah di cache, tidak perlu fetch ulang)
+UI -> MGR: Dialog detail gaji
+
+== UNDUH SLIP GAJI ==
+MGR -> UI: Klik "Unduh Slip Gaji"
+UI -> UI: import { downloadSlipGajiPdf } from '@/lib/pdf/payslip'
+UI -> UI: downloadSlipGajiPdf(selectedGaji)
+note right: generate PDF:\nmetadata hal 1,\nfoto before/after hal 2+
+UI -> MGR: File PDF terunduh
+@enduml

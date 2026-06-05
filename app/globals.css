@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* DEFAULT / LIGHT MODE (Teal Blue & Lime Green Theme) */
+    
+    /* Backgrounds & Text */
+    --background: 0 0% 100%;             /* Putih Cerah */
+    --foreground: 200 25% 15%;           /* Biru Gelap untuk teks */
+    --card: 0 0% 100%;
+    --card-foreground: 200 25% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 25% 15%;
+    
+    /* PRIMARY (Teal Blue/Biru Utama) -> seperti di logo */
+    --primary: 196 84% 35%;              /* Teal Blue */
+    --primary-foreground: 0 0% 100%;     /* Putih Kontras */
+    
+    /* SECONDARY (Hijau Lime Cerah) */
+    --secondary: 82 65% 65%;             /* Lime Green */
+    --secondary-foreground: 200 25% 15%; /* Teks gelap */
+    
+    /* MUTED (Abu-biru Lembut) */
+    --muted: 200 20% 96%;                /* Abu-biru sangat terang */
+    --muted-foreground: 200 15% 45%;     /* Abu-biru sedang */
+    
+    /* ACCENT (Hijau Lime Lebih Soft) */
+    --accent: 82 55% 90%;                /* Lime sangat terang */
+    --accent-foreground: 200 25% 20%;    /* Teks gelap */
+    
+    /* DESTRUCTIVE (Merah) */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    
+    /* Borders & Inputs */
+    --border: 200 25% 88%;               /* Border biru lembut */
+    --input: 200 25% 88%;
+    --ring: 196 84% 35%;                 /* Fokus mengikuti Primary */
+    --radius: 0.5rem;
+    
+    /* Chart Colors (gradasi teal ke lime) */
+    --chart-1: 196 84% 35%;              /* Teal */
+    --chart-2: 190 70% 45%;              /* Teal lebih terang */
+    --chart-3: 175 55% 55%;              /* Teal-Cyan */
+    --chart-4: 120 50% 60%;              /* Hijau */
+    --chart-5: 82 65% 65%;               /* Lime */
+  }
+
+  .dark {
+    /* DARK MODE (Biru Gelap + Aksen Teal & Lime) */
+    
+    /* Backgrounds & Text */
+    --background: 200 30% 8%;            /* Biru sangat gelap */
+    --foreground: 0 0% 95%;              /* Teks terang */
+    --card: 200 25% 12%;                 /* Card sedikit lebih terang */
+    --card-foreground: 0 0% 95%;
+    --popover: 200 25% 12%;
+    --popover-foreground: 0 0% 95%;
+    
+    /* PRIMARY (Teal lebih cerah untuk kontras dark) */
+    --primary: 190 75% 50%;              /* Teal cerah */
+    --primary-foreground: 200 30% 8%;    /* Teks gelap */
+    
+    /* SECONDARY (Lime Green) */
+    --secondary: 82 60% 60%;             /* Lime green cerah */
+    --secondary-foreground: 200 30% 8%;  /* Teks gelap */
+    
+    /* MUTED */
+    --muted: 200 20% 18%;                /* Abu-biru gelap */
+    --muted-foreground: 200 15% 65%;     /* Abu-biru terang */
+    
+    /* ACCENT */
+    --accent: 200 30% 22%;               /* Biru gelap untuk accent */
+    --accent-foreground: 82 60% 70%;     /* Lime terang */
+    
+    /* DESTRUCTIVE */
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    
+    /* Borders & Inputs */
+    --border: 200 20% 25%;               /* Border biru gelap */
+    --input: 200 20% 20%;
+    --ring: 190 75% 50%;                 /* Fokus teal cerah */
+    
+    /* Chart Colors (gradasi untuk dark mode) */
+    --chart-1: 190 75% 50%;              /* Teal cerah */
+    --chart-2: 185 65% 55%;              /* Teal-cyan */
+    --chart-3: 170 55% 55%;              /* Cyan-hijau */
+    --chart-4: 120 50% 55%;              /* Hijau */
+    --chart-5: 82 60% 60%;               /* Lime */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    /* Menggunakan font Inter (Default Tailwind) */
+    @apply bg-background text-foreground antialiased;
+  }
+}

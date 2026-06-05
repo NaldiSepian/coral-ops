@@ -1,0 +1,24 @@
+@startuml
+left to right direction
+actor "Manager" as MGR
+actor "Teknisi" as TEK
+rectangle "Sistem BWM" {
+  usecase "Kelola Preferensi BWM" as UC_PREF
+  usecase "Lihat Perhitungan BWM" as UC_LIHAT_HITUNG
+  usecase "Hitung BWM" as UC_HITUNG
+  usecase "Finalisasi Perhitungan" as UC_FINAL
+  usecase "Atur Plafon Bonus" as UC_PLAFON
+  usecase "Lihat Gaji Teknisi" as UC_GAJI
+  usecase "Unduh Slip Gaji" as UC_DOWNLOAD
+  usecase "Lihat Gaji Saya" as UC_GAJI_SAYA
+}
+MGR --> UC_PREF
+MGR --> UC_LIHAT_HITUNG
+UC_LIHAT_HITUNG ..> UC_HITUNG : <<include>>
+UC_LIHAT_HITUNG ..> UC_FINAL : <<include>>
+UC_LIHAT_HITUNG ..> UC_PLAFON : <<extend>>
+MGR --> UC_GAJI
+TEK --> UC_GAJI_SAYA
+UC_GAJI ..> UC_DOWNLOAD : <<extend>>
+UC_GAJI_SAYA ..> UC_DOWNLOAD : <<extend>>
+@enduml

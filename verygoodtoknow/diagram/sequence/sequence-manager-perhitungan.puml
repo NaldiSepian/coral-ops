@@ -1,0 +1,78 @@
+@startuml
+actor "Manager" as MGR
+boundary "UI Perhitungan" as UI
+control "API /api/bwm/perhitungan" as API
+control "BWM Engine\nlib/bwm/" as BWM
+database "Supabase\n(PostgreSQL)" as DB
+
+== LIST PENUGASAN SIAP HITUNG ==
+MGR -> UI: Buka /manager/bwm/perhitungan
+UI -> API: GET /api/manager/penugasan?status=Selesai
+activate API
+API -> DB: SELECT penugasan WHERE status='Selesai' ORDER BY id DESC
+DB --> API: [{ id, judul, bwm_status, plafon_bonus, ... }]
+API --> UI: { data: [...] }
+deactivate API
+UI -> MGR: Tampil daftar penugasan + status BWM
+
+== HITUNG BWM ==
+MGR -> UI: Pilih penugasan, klik "Hitung BWM"
+UI -> API: POST /api/bwm/perhitungan { penugasan_id }
+activate API
+
+API -> DB: SELECT preferensi_bwm WHERE is_active=true LIMIT 1
+DB --> API: { best_criteria, worst_criteria, bo_c1..bo_c5, ow_c1..ow_c5 }
+
+API -> BWM: parsePreferensi(dbRow)
+BWM --> API: ParsedPreferensi
+
+API -> DB: SELECT penugasan_teknisi + profil + laporan_progres WHERE penugasan_id
+note right: Ambil raw values c1..c5\nuntuk setiap teknisi
+DB --> API: BWMInput[]
+
+API -> BWM: batchCalculateBWM(inputs, parsedPreferensi)
+activate BWM
+note right
+ 1. solveBWM() -> bobot + xi*
+ 2. calculateBatchRanges()
+ 3. Normalisasi Min-Max
+ 4. calculateWSM() -> skor
+ 5. calculateTunjangan()
+ 6. Konsistensi CR
+end note
+BWM --> API: [{ input, result }]
+
+API -> DB: INSERT INTO perhitungan_bwm (batch)
+DB --> API: saved
+API -> DB: UPDATE penugasan SET bwm_status='draft' WHERE id=$1
+DB --> API: OK
+API --> UI: { data: results }
+deactivate API
+UI -> MGR: Redirect ke /perhitungan/{id}
+
+== REVIEW DETAIL ==
+UI -> API: GET /api/bwm/perhitungan?penugasan_id=$1
+activate API
+API -> DB: SELECT perhitungan_bwm + profil WHERE penugasan_id=$1
+DB --> API: [{ teknisi, c1..c5, w1..w5, skor_akhir, cr, status }]
+API --> UI: { data }
+deactivate API
+UI -> MGR: Tampil skor, bobot, CR, tunjangan
+
+== FINALISASI ==
+MGR -> UI: Klik "Finalisasi Semua"
+UI -> API: PATCH /api/bwm/perhitungan/{id}/finalize
+loop for each perhitungan
+  activate API
+  API -> DB: UPDATE perhitungan_bwm SET status='final', finalisasi_oleh=$1, finalisasi_pada=NOW()
+  note right
+    Trigger on gaji_teknisi:
+    INSERT + calculate_total_gaji()
+  end note
+  DB --> API: OK
+  deactivate API
+end
+API -> DB: UPDATE penugasan SET bwm_status='final' WHERE id=$1
+API --> UI: { message: "Semua perhitungan difinalisasi" }
+UI -> MGR: Badge "Final" pada semua kartu
+@enduml

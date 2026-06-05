@@ -1,0 +1,152 @@
+@startuml
+skinparam defaultFontName Courier
+
+package "Master Data" {
+  class TunjanganLisensi {
+    + level: VARCHAR(10) PK
+    + tunjangan_jabatan: DECIMAL(12,2)
+    + created_at: TIMESTAMP
+    + updated_at: TIMESTAMP
+  }
+}
+
+package "Preferensi BWM" {
+  class PreferensiBWM {
+    + id: UUID PK
+    + nama: VARCHAR(100)
+    + best_criteria: VARCHAR(5)
+    + worst_criteria: VARCHAR(5)
+    + bo_c1: INT (1-9)
+    + bo_c2: INT (1-9)
+    + bo_c3: INT (1-9)
+    + bo_c4: INT (1-9)
+    + bo_c5: INT (1-9)
+    + ow_c1: INT (1-9)
+    + ow_c2: INT (1-9)
+    + ow_c3: INT (1-9)
+    + ow_c4: INT (1-9)
+    + ow_c5: INT (1-9)
+    + is_active: BOOLEAN
+    + created_by: UUID FK
+    + created_at: TIMESTAMP
+    + updated_at: TIMESTAMP
+  }
+}
+
+package "Perhitungan" {
+  class PerhitunganBWM {
+    + id: UUID PK
+    + penugasan_id: INT FK
+    + teknisi_id: UUID FK
+    + preferensi_id: UUID FK
+    -- Nilai Mentah --
+    + c1_kecepatan: DECIMAL(5,2)
+    + c2_kualitas: DECIMAL(5,2)
+    + c3_kepatuhan: DECIMAL(5,2)
+    + c4_proaktivitas: INT
+    + c5_kompetensi: DECIMAL(12,2)
+    -- Normalisasi --
+    + v1: DECIMAL(6,2)
+    + v2: DECIMAL(6,2)
+    + v3: DECIMAL(6,2)
+    + v4: DECIMAL(6,2)
+    + v5: DECIMAL(6,2)
+    -- Bobot BWM --
+    + w1..w5: DECIMAL(5,4)
+    -- Konsistensi --
+    + xi_star: DECIMAL(10,6)
+    + cr: DECIMAL(5,4)
+    -- Hasil --
+    + skor_akhir: DECIMAL(6,2)
+    + tunjangan_didapat: DECIMAL(12,2)
+    + status: VARCHAR(20) {'draft', 'final'}
+    + finalisasi_oleh: UUID FK
+    + finalisasi_pada: TIMESTAMP
+  }
+
+  note bottom of PerhitunganBWM
+    UNIQUE(penugasan_id, teknisi_id)
+    1 teknisi 1 penugasan = 1 perhitungan
+  end note
+}
+
+package "Gaji" {
+  class GajiTeknisi {
+    + id: UUID PK
+    + teknisi_id: UUID FK
+    + penugasan_id: INT FK
+    + periode_mulai: DATE
+    + periode_selesai: DATE
+    + tunjangan_jabatan: DECIMAL(12,2)
+    + bonus_bwm: DECIMAL(12,2)
+    + bonus_lain: DECIMAL(12,2)
+    + potongan: DECIMAL(12,2)
+    + total_gaji: DECIMAL(12,2)
+    + status: VARCHAR(20) {'draft', 'disetujui', 'dibayar'}
+    + disetujui_oleh: UUID FK
+    + disetujui_pada: TIMESTAMP
+    + dibayar_pada: TIMESTAMP
+  }
+
+  note bottom of GajiTeknisi
+    UNIQUE(teknisi_id, penugasan_id)
+    total_gaji dihitung otomatis
+    via trigger calculate_total_gaji()
+  end note
+}
+
+package "Penugasan (extended)" {
+  class Penugasan {
+    + id: SERIAL PK
+    + judul: VARCHAR
+    + kategori: ENUM
+    + status: ENUM
+    -- BWM Columns --
+    + plafon_bonus: DECIMAL(12,2)
+    + bwm_status: VARCHAR(20) {'belum_dihitung', 'draft', 'final'}
+    + tanggal_selesai_actual: DATE
+    + auto_complete_enabled: BOOLEAN
+    + minimal_persentase_complete: INT
+  }
+}
+
+package "Engine (lib/bwm/)" {
+  class BWMInput {
+    + teknisiId: string
+    + penugasanId: number
+    + rawValues: RawValues
+    + plafonBonus: number
+  }
+
+  class BWMResult {
+    + weights: Weights
+    + normalizedValues: NormalizedValues
+    + xiStar: number
+    + cr: number
+    + isConsistent: boolean
+    + skorAkhir: number
+    + tunjanganDidapat: number
+  }
+
+  class ParsedPreferensi {
+    + id: string
+    + bestCriteria: CriteriaCode
+    + worstCriteria: CriteriaCode
+    + boVector: BOVector
+    + owVector: OWVector
+  }
+}
+
+' === RELASI DATABASE ===
+PreferensiBWM "1" --o "*" PerhitunganBWM : digunakan oleh
+Penugasan "1" -- "*" PerhitunganBWM : dihitung untuk
+Penugasan "1" -- "*" GajiTeknisi : sumber gaji
+PerhitunganBWM "1" -- "1" GajiTeknisi : hasil jadi gaji
+
+' === ENGINE RELASI ===
+ParsedPreferensi ..> BOVector : memiliki
+ParsedPreferensi ..> OWVector : memiliki
+BWMInput ..> PerhitunganBWM : dihitung menjadi
+BWMResult ..> PerhitunganBWM : tersimpan sebagai
+
+@enduml
