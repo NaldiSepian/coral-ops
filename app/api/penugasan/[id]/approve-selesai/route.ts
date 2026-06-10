@@ -59,7 +59,7 @@ export async function POST(
 
     if (!canFinish) {
       return NextResponse.json({ 
-        error: "Tidak bisa menyelesaikan penugasan. Pastikan semua laporan sudah disetujui dan tidak ada yang ditolak." 
+        error: "Tidak bisa menyelesaikan penugasan. Pastikan semua laporan sudah divalidasi (disetujui/ditolak) dan tidak ada yang masih menunggu." 
       }, { status: 400 });
     }
 

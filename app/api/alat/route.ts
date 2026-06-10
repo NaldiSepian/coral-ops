@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const tipeAlat = searchParams.get('tipe_alat') || '';
+    const available = searchParams.get('available') || '';
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -38,8 +39,14 @@ export async function GET(request: NextRequest) {
       .from("alat")
       .select("*")
       .eq("is_deleted", false)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order("created_at", { ascending: false });
+
+    // If available=true, only show items with stok > 0 and no pagination
+    if (available === 'true') {
+      query = query.gt("stok_tersedia", 0);
+    } else {
+      query = query.range(offset, offset + limit - 1);
+    }
 
     // Add search filter if provided
     if (search) {
@@ -67,6 +74,10 @@ export async function GET(request: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("is_deleted", false);
 
+    if (available === 'true') {
+      countQuery = countQuery.gt("stok_tersedia", 0);
+    }
+
     if (search) {
       countQuery = countQuery.ilike("nama", `%${search}%`);
     }
@@ -85,9 +96,9 @@ export async function GET(request: NextRequest) {
       data: alat || [],
       pagination: {
         total: count || 0,
-        limit,
-        offset,
-        hasMore: (offset + limit) < (count || 0)
+        limit: available === 'true' ? (count || 0) : limit,
+        offset: available === 'true' ? 0 : offset,
+        hasMore: false
       }
     });
 

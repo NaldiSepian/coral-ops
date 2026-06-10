@@ -518,11 +518,10 @@ BEGIN
 
   -- Penugasan siap selesai jika:
   -- 1. Ada minimal 1 laporan
-  -- 2. Tidak ada laporan yang menunggu validasi
-  -- 3. Tidak ada laporan yang ditolak
+  -- 2. Semua laporan sudah divalidasi (disetujui ATAU ditolak)
+  -- 3. Laporan ditolak TIDAK memblokir (dipakai dalam perhitungan kualitas BWM)
   RETURN (v_total_laporan > 0) 
-    AND (v_total_laporan = v_laporan_disetujui) 
-    AND (v_laporan_ditolak = 0);
+    AND ((v_laporan_disetujui + v_laporan_ditolak) = v_total_laporan);
 END;
 $$;
 
